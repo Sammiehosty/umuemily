@@ -65,7 +65,7 @@ function Dashboard({ onLogout, role }: { onLogout: () => void; role: Role }) {
   };
   useEffect(() => { fetchAll(); }, []);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-center"><div className="text-4xl animate-bounce mb-4">🎂</div><p className="text-gray-500">Loading...</p></div></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-center"><div className="text-4xl animate-bounce mb-4">👥</div><p className="text-gray-500">Loading...</p></div></div>;
 
   const tabs = [
     {key:"dashboard",label:"📊 Dashboard",ml:"📊"},
@@ -80,7 +80,7 @@ function Dashboard({ onLogout, role }: { onLogout: () => void; role: Role }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-primary text-white shadow-lg"><div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between"><div className="flex items-center gap-3"><span className="text-3xl">🎂</span><div><h1 className="text-lg font-bold">Umu Emily Family Manager</h1><p className="text-xs text-green-200">{isAdmin?'Admin':'Contributor Admin'} • Birthdays • Contributions</p></div></div><button onClick={onLogout} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm">Logout</button></div></header>
+      <header className="bg-primary text-white shadow-lg"><div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between"><div className="flex items-center gap-3"><span className="text-3xl">👥</span><div><h1 className="text-lg font-bold">Umu Emily Family Manager</h1><p className="text-xs text-green-200">{isAdmin?'Admin':'Contributor Admin'} • Birthdays • Contributions</p></div></div><button onClick={onLogout} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm">Logout</button></div></header>
       <div className="max-w-6xl mx-auto px-4 mt-4"><div className="flex gap-1 bg-white rounded-xl p-1 shadow-sm overflow-x-auto">
         {tabs.map(t=><button key={t.key} onClick={()=>setTab(t.key)} className={`flex-1 py-2 px-1 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${tab===t.key?"bg-primary text-white":"text-gray-600 hover:bg-gray-100"}`}><span className="hidden md:inline">{t.label}</span><span className="md:hidden">{t.ml}</span></button>)}
       </div></div>

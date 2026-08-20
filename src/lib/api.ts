@@ -1,37 +1,19 @@
-const API_BASE_URL = 'https://emily.sammiehosty.com';
-
-export const api = {
-  dbStatus: () => fetch(`${API_BASE_URL}/api/db-status.php`),
-  auth: (password: string) => fetch(`${API_BASE_URL}/api/auth.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) }),
-  getDashboard: () => fetch(`${API_BASE_URL}/api/dashboard.php`),
-  getWaStatus: () => fetch(`${API_BASE_URL}/api/wa-status.php`),
-  getMembers: () => fetch(`${API_BASE_URL}/api/members.php`),
-  addMember: (name: string, birthMonth: number, birthDay: number) => fetch(`${API_BASE_URL}/api/members.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, birthMonth, birthDay }) }),
-  updateMember: (id: number, name: string, birthMonth: number, birthDay: number) => fetch(`${API_BASE_URL}/api/members.php`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name, birthMonth, birthDay }) }),
-  deleteMember: (id: number) => fetch(`${API_BASE_URL}/api/members.php`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
-  getSettings: () => fetch(`${API_BASE_URL}/api/settings.php`),
-  updateSettings: (updates: Record<string, string>) => fetch(`${API_BASE_URL}/api/settings.php`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }),
-  getLogs: () => fetch(`${API_BASE_URL}/api/logs.php`),
-  sendMessage: (memberName: string, messageType: string, message: string) => fetch(`${API_BASE_URL}/api/send-message.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberName, messageType, message }) }),
-  testSend: (memberId: number, messageType: string) => fetch(`${API_BASE_URL}/api/test-send.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberId, messageType }) }),
-  getScheduledMessages: (filter: 'all' | 'pending' | 'sent' = 'all') => fetch(`${API_BASE_URL}/api/scheduled-messages.php?filter=${filter}`),
-  addScheduledMessage: (message: string, scheduledAt: string) => fetch(`${API_BASE_URL}/api/scheduled-messages.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, scheduledAt }) }),
-  updateScheduledMessage: (id: number, message: string, scheduledAt: string) => fetch(`${API_BASE_URL}/api/scheduled-messages.php`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, message, scheduledAt }) }),
-  deleteScheduledMessage: (id: number) => fetch(`${API_BASE_URL}/api/scheduled-messages.php`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
-  getContributions: (month: string) => fetch(`${API_BASE_URL}/api/contributions.php?month=${month}`),
-  updateContributions: (yearMonth: string, updates: Array<{ memberId: number; week1: boolean; week2: boolean; week3: boolean; week4: boolean; week5: boolean }>) => fetch(`${API_BASE_URL}/api/contributions.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ yearMonth, updates }) }),
-  sendContributionReport: (yearMonth: string) => fetch(`${API_BASE_URL}/api/send-contribution-report.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ yearMonth }) }),
-  // Birthday contributions
-  getBirthdayContributions: (year: number) => fetch(`${API_BASE_URL}/api/birthday-contributions.php?year=${year}`),
-  getBirthdayContributionDetail: (birthdayMemberId: number, year: number) => fetch(`${API_BASE_URL}/api/birthday-contributions.php?birthdayMemberId=${birthdayMemberId}&year=${year}`),
-  updateBirthdayContributions: (birthdayMemberId: number, year: number, updates: Array<{ memberId: number; paid: boolean; amount: number }>) => fetch(`${API_BASE_URL}/api/birthday-contributions.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update', birthdayMemberId, year, updates }) }),
-  birthdayPayout: (birthdayMemberId: number, year: number) => fetch(`${API_BASE_URL}/api/birthday-contributions.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'payout', birthdayMemberId, year }) }),
-  // Finance
-  getFinance: () => fetch(`${API_BASE_URL}/api/finance.php`),
-  sendCredit: (memberName: string, amount: number, description: string) => fetch(`${API_BASE_URL}/api/finance.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'credit', memberName, amount, description }) }),
-  deleteTransaction: (id: number) => fetch(`${API_BASE_URL}/api/finance.php`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
-  // Support
-  sendSupport: (memberName: string, amount: number, description: string) => fetch(`${API_BASE_URL}/api/support.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberName, amount, description }) }),
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://emily.sammiehosty.com').replace(/\/$/, '');
+function authHeaders(extra: Record<string,string>={}){const token=typeof window!=='undefined'?localStorage.getItem('auth_token'):'';return {'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{ }),...extra};}
+async function request(path:string, init:RequestInit={}){const r=await fetch(`${API_BASE_URL}${path}`,{...init,headers:authHeaders((init.headers||{}) as Record<string,string>)});if(r.status===401&&typeof window!=='undefined'){localStorage.removeItem('auth_token');localStorage.removeItem('auth_role');}return r;}
+export const api={
+ dbStatus:()=>fetch(`${API_BASE_URL}/api/db-status.php`),
+ auth:(password:string)=>fetch(`${API_BASE_URL}/api/auth.php`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password})}),
+ logout:()=>request('/api/logout.php',{method:'POST'}),
+ getDashboard:()=>request('/api/dashboard.php'),getHealth:()=>request('/api/health.php'),getWaStatus:()=>request('/api/wa-status.php'),
+ getMembers:()=>request('/api/members.php'),addMember:(data:any)=>request('/api/members.php',{method:'POST',body:JSON.stringify(data)}),updateMember:(data:any)=>request('/api/members.php',{method:'PUT',body:JSON.stringify(data)}),deleteMember:(id:number)=>request('/api/members.php',{method:'DELETE',body:JSON.stringify({id})}),
+ getSettings:()=>request('/api/settings.php'),updateSettings:(data:any)=>request('/api/settings.php',{method:'PUT',body:JSON.stringify(data)}),
+ getLogs:()=>request('/api/logs.php?limit=300'),sendMessage:(memberName:string,messageType:string,message:string)=>request('/api/send-message.php',{method:'POST',body:JSON.stringify({memberName,messageType,message})}),testSend:(memberId:number,messageType:string)=>request('/api/test-send.php',{method:'POST',body:JSON.stringify({memberId,messageType})}),
+ getScheduledMessages:(filter='all')=>request(`/api/scheduled-messages.php?filter=${filter}`),addScheduledMessage:(message:string,scheduledAt:string)=>request('/api/scheduled-messages.php',{method:'POST',body:JSON.stringify({message,scheduledAt})}),updateScheduledMessage:(data:any)=>request('/api/scheduled-messages.php',{method:'PUT',body:JSON.stringify(data)}),deleteScheduledMessage:(id:number)=>request('/api/scheduled-messages.php',{method:'DELETE',body:JSON.stringify({id})}),
+ getContributions:(month:string)=>request(`/api/contributions.php?month=${month}`),updateContributions:(yearMonth:string,updates:any[])=>request('/api/contributions.php',{method:'POST',body:JSON.stringify({yearMonth,updates})}),sendContributionReport:(yearMonth:string)=>request('/api/send-contribution-report.php',{method:'POST',body:JSON.stringify({yearMonth})}),
+ getBirthdayContributions:(year:number)=>request(`/api/birthday-contributions.php?year=${year}`),getBirthdayContributionDetail:(birthdayMemberId:number,year:number)=>request(`/api/birthday-contributions.php?birthdayMemberId=${birthdayMemberId}&year=${year}`),updateBirthdayContributions:(birthdayMemberId:number,year:number,updates:any[])=>request('/api/birthday-contributions.php',{method:'POST',body:JSON.stringify({action:'update',birthdayMemberId,year,updates})}),birthdayPayout:(birthdayMemberId:number,year:number)=>request('/api/birthday-contributions.php',{method:'POST',body:JSON.stringify({action:'payout',birthdayMemberId,year})}),
+ getFinance:()=>request('/api/finance.php'),sendCredit:(memberName:string,amount:number,description:string)=>request('/api/finance.php',{method:'POST',body:JSON.stringify({action:'credit',memberName,amount,description})}),sendSupport:(memberName:string,amount:number,description:string)=>request('/api/finance.php',{method:'POST',body:JSON.stringify({action:'support',memberName,amount,description})}),sendDebtRecovery:(memberName:string,amount:number,description:string)=>request('/api/finance.php',{method:'POST',body:JSON.stringify({action:'debt_recovery',memberName,amount,description})}),voidTransaction:(id:number,reason:string)=>request('/api/finance.php',{method:'PATCH',body:JSON.stringify({id,reason})}),
+ changePassword:(username:string,password:string)=>request('/api/users.php',{method:'PUT',body:JSON.stringify({username,password})}),
+ report:(type:string)=>request(`/api/reports.php?type=${encodeURIComponent(type)}&format=csv`),
 };
-
-export const getApiBaseUrl = () => API_BASE_URL;
+export const getApiBaseUrl=()=>API_BASE_URL;

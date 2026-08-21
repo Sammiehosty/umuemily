@@ -14,7 +14,7 @@ A WhatsApp birthday reminder system for the Umu Emily Grandchildren group. Autom
                                               ▼
                                     ┌─────────────────────┐
                                     │   cron-job.org      │
-                                    │   Daily @ 8AM Africa/Lagos   │
+                                    │   Daily @ 8AM WAT   │
                                     └─────────────────────┘
                                               │
                                               ▼
@@ -99,7 +99,7 @@ A WhatsApp birthday reminder system for the Umu Emily Grandchildren group. Autom
    - **Title:** Umu Emily Birthday Check
    - **URL:** `https://emily.sammiehosty.com/api/cron.php?secret=YOUR_CRON_SECRET`
    - **Schedule:** Daily at 8:00 AM
-   - **Timezone:** Africa/Lagos (WAT, UTC+01:00)
+   - **Timezone:** Africa/Lagos (WAT)
 
 3. **Update the cron secret** in your app's Settings tab
 
@@ -168,11 +168,3 @@ A WhatsApp birthday reminder system for the Umu Emily Grandchildren group. Autom
 - **Hosting:** Vercel (frontend), cPanel (backend)
 - **Automation:** cron-job.org
 - **Messaging:** WA Client API (waclient.com)
-
-### Duplicate-send protection
-
-The cron endpoint is **idempotent** for automatic birthday and monthly events. Each event is stored in `cron_events` with a unique event key before WhatsApp is called. If cron-job.org runs twice, the second run sees `already_done` and does not send the event again.
-
-Scheduled messages are also atomically changed from `pending` to `processing` before they are sent, preventing overlapping cron requests from sending the same scheduled message twice.
-
-All PHP and MySQL session date/time handling is configured for **Africa/Lagos (UTC+01:00)**.

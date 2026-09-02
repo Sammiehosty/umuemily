@@ -232,7 +232,7 @@ function DashboardTab({ data, finance, onRefresh, isAdmin }: { data: DashboardDa
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl p-4"><p className="text-xs opacity-80">Weekly Dues</p><p className="text-xl font-bold">₦{finance.weeklyTotal.toLocaleString()}</p></div>
           <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl p-4"><p className="text-xs opacity-80">Support + Recovered</p><p className="text-xl font-bold">₦{((finance.totalSupport||0)+(finance.totalDebtRecovery||0)).toLocaleString()}</p></div>
-          <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl p-4"><p className="text-xs opacity-80">Deducted</p><p className="text-xl font-bold">₦{fmtMoney(finance.totalDeductions)}</p></div>
+          <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl p-4"><p className="text-xs opacity-80">Deducted + Bank Charges</p><p className="text-xl font-bold">₦{fmtMoney(finance.totalDeductions)}</p></div>
           <div className={`bg-gradient-to-r ${finance.balance<0?'from-red-500 to-red-600':'from-primary to-primary-dark'} text-white rounded-xl p-4`}><p className="text-xs opacity-80">Balance</p><p className="text-xl font-bold">{finance.balance<0?'-':''}₦{fmtMoney(Math.abs(finance.balance))}</p></div>
         </div>
       )}

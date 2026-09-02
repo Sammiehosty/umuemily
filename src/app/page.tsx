@@ -8,8 +8,8 @@ type ScheduledMessage = { id: number; message: string; scheduledAt: string; stat
 type ContributionRecord = { memberId: number; memberName: string; yearMonth: string; week1: number; week2: number; week3: number; week4: number; week5: number; memberTotal?: number };
 type DashboardData = { upcomingBirthdays: Array<{ id: number; name: string; birthMonth: number; birthDay: number; daysUntil: number }>; upcomingScheduled: ScheduledMessage[]; recentLogs: LogEntry[]; stats: { totalMembers: number; totalMessagesSent: number; pendingScheduled: number; upcomingBirthdays: number }; waClient: { configured: boolean; groupId: string; groupName: string; instanceId: string }; serverTime: string; timezone: string };
 type Settings = Record<string, string>;
-type MemberStats = { memberId: number; memberName: string; totalContributed: number; birthdayContributed: number; weeklyDebt: number; birthdayDebt: number; totalDebt: number; birthdayPayoutReceived: number; birthdayPayoutToday: number; totalSupported: number; totalCredited: number; creditToday: number };
-type FinanceData = { weeklyTotal: number; totalSupport: number; totalDebtRecovery: number; totalDeductions: number; balance: number; outstandingDebt: number; trackedMonths?: number; transactions: Array<{ id: number; type: string; amount: number; description: string; memberName: string; createdAt: string }>; memberTotals: MemberStats[] };
+type MemberStats = { memberId: number; memberName: string; totalContributed: number; birthdayContributed: number; weeklyDebt: number; birthdayDebt: number; lateFeeOwed: number; lateFeePaid: number; totalDebt: number; birthdayPayoutReceived: number; birthdayPayoutToday: number; totalSupported: number; totalCredited: number; creditToday: number };
+type FinanceData = { weeklyTotal: number; totalSupport: number; totalDebtRecovery: number; totalLateFeesOwed: number; totalLateFeesPaid: number; totalBirthdayContributed: number; totalContributionsBalance: number; totalDeductions: number; balance: number; outstandingDebt: number; trackedMonths?: number; transactions: Array<{ id: number; type: string; amount: number; description: string; memberName: string; createdAt: string }>; memberTotals: MemberStats[] };
 type BdayContributor = { memberId: number; memberName: string; paid: number; amount: number };
 type Role = 'admin' | 'contrib';
 
@@ -63,8 +63,8 @@ function monthSaturdays(ym: string): string[] {
   return out;
 }
 function fmtYM(ym: string) { const [y,m]=ym.split('-'); return `${MN[parseInt(m)-1]} ${y}`; }
-function txnColor(t: string) { if (t==='support'||t==='debt_recovery') return 'text-green-600'; if (t==='birthday_payout'||t==='weekly_deduction'||t==='credit') return 'text-red-600'; return 'text-gray-600'; }
-function txnSign(t: string) { if (t==='support'||t==='debt_recovery') return '+'; return '-'; }
+function txnColor(t: string) { if (t==='support'||t==='debt_recovery'||t==='late_fee_payment') return 'text-green-600'; if (t==='birthday_payout'||t==='weekly_deduction'||t==='credit') return 'text-red-600'; return 'text-gray-600'; }
+function txnSign(t: string) { if (t==='support'||t==='debt_recovery'||t==='late_fee_payment') return '+'; return '-'; }
 
 // ==================== LOGIN ====================
 function LoginPage({ onLogin }: { onLogin: (role: Role) => void }) {
@@ -170,7 +170,7 @@ function Dashboard({ onLogout, role }: { onLogout: () => void; role: Role }) {
         {tab==="dashboard"&&<DashboardTab data={dash} finance={finance} onRefresh={fetchAll} isAdmin={isAdmin}/>}
         {tab==="members"&&<MembersTab members={members} finance={finance} onRefresh={fetchAll} isAdmin={isAdmin}/>}
         {tab==="contributions"&&<ContributionsTab/>}
-        {tab==="bdayContrib"&&<BdayContribTab members={members}/>}
+        {tab==="bdayContrib"&&<BdayContribTab members={members} onRefresh={fetchAll}/>}
         {tab==="scheduler"&&<SchedulerTab messages={sched} onRefresh={refreshScheduled} isAdmin={isAdmin}/>}
         {tab==="send"&&<SendTab members={members} settings={settings} onRefresh={refreshLogs} isAdmin={isAdmin}/>}
         {tab==="settings"&&<SettingsTab settings={settings} onRefresh={refreshSettings} isAdmin={isAdmin}/>}
@@ -259,12 +259,27 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
   const [activePanel, setActivePanel] = useState<'none'|'credit'|'support'>('none');
   const [creditName, setCreditName] = useState(""); const [creditAmt, setCreditAmt] = useState(""); const [creditDesc, setCreditDesc] = useState(""); const [crediting, setCrediting] = useState(false);
   const [supName, setSupName] = useState(""); const [supAmt, setSupAmt] = useState(""); const [supDesc, setSupDesc] = useState(""); const [supporting, setSupporting] = useState(false);
+  const [payingLateFeeId, setPayingLateFeeId] = useState<number|null>(null);
 
   const reset = () => { setName(""); setBm(1); setBd(1); setEditId(null); setShowForm(false); };
   const submit = async (e: React.FormEvent) => { e.preventDefault(); if(editId) await api.updateMember(editId,name,bm,bd); else await api.addMember(name,bm,bd); reset(); onRefresh(); };
   const edit = (m: Member) => { setEditId(m.id); setName(m.name); setBm(m.birthMonth); setBd(m.birthDay); setShowForm(true); setActivePanel('none'); };
   const handleCredit = async () => { if (!creditName||!creditAmt||!creditDesc) return; setCrediting(true); await api.sendCredit(creditName, parseInt(creditAmt), creditDesc); setCreditName(""); setCreditAmt(""); setCreditDesc(""); setCrediting(false); setActivePanel('none'); onRefresh(); };
   const handleSupport = async () => { if (!supName||!supAmt) return; setSupporting(true); await api.sendSupport(supName, parseInt(supAmt), supDesc); setSupName(""); setSupAmt(""); setSupDesc(""); setSupporting(false); setActivePanel('none'); onRefresh(); };
+  const handleLateFeePayment = async (memberId: number, memberName: string, amount: number) => {
+    if (!confirm(`Mark ${memberName}'s ₦${amount.toLocaleString()} late fee${amount===500?'':'s'} as paid?`)) return;
+    setPayingLateFeeId(memberId);
+    try {
+      const response = await api.payLateFees(memberId);
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Could not record late-fee payment');
+      await onRefresh();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not record late-fee payment');
+    } finally {
+      setPayingLateFeeId(null);
+    }
+  };
 
   const statsMap: Record<number, MemberStats> = {};
   finance?.memberTotals?.forEach(mt => { statsMap[mt.memberId] = mt; });
@@ -319,13 +334,13 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
         </form>
       )}
       {finance&&finance.memberTotals&&finance.memberTotals.length>0&&(()=>{
-        const paidAll=finance.memberTotals.reduce((t,x)=>t+x.totalContributed+x.birthdayContributed,0);
         const debtAll=finance.memberTotals.reduce((t,x)=>t+x.totalDebt,0);
         const supportAll=finance.memberTotals.reduce((t,x)=>t+(x.totalSupported||0),0);
         const debtors=finance.memberTotals.filter(x=>x.totalDebt>0).length;
         return(
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className="text-lg font-bold text-green-600">₦{paidAll.toLocaleString()}</div><div className="text-xs text-gray-500">Total Contributed</div></div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className="text-lg font-bold text-green-600">₦{finance.totalContributionsBalance.toLocaleString()}</div><div className="text-xs text-gray-500">Total Contributions Balance</div></div>
+            <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className={`text-lg font-bold ${finance.totalLateFeesOwed>0?'text-red-600':'text-green-600'}`}>₦{finance.totalLateFeesOwed.toLocaleString()}</div><div className="text-xs text-gray-500">Total Late Fees Owed</div></div>
             <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className={`text-lg font-bold ${debtAll>0?'text-red-600':'text-green-600'}`}>₦{debtAll.toLocaleString()}</div><div className="text-xs text-gray-500">Total Outstanding</div></div>
             <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className="text-lg font-bold text-purple-600">₦{supportAll.toLocaleString()}</div><div className="text-xs text-gray-500">Total Support</div></div>
             <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className={`text-lg font-bold ${debtors>0?'text-orange-600':'text-green-600'}`}>{debtors}</div><div className="text-xs text-gray-500">Members Owing</div></div>
@@ -339,6 +354,8 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
         const bdayPaid=s?s.birthdayContributed:0;
         const weeklyDebt=s?s.weeklyDebt:0;
         const bdayDebt=s?s.birthdayDebt:0;
+        const lateFeeOwed=s?s.lateFeeOwed:0;
+        const lateFeePaid=s?s.lateFeePaid:0;
         const totalDebt=s?s.totalDebt:0;
         const payoutTotal=s?s.birthdayPayoutReceived:0;
         const payoutToday=s?s.birthdayPayoutToday:0;
@@ -379,9 +396,13 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
               <span className="text-gray-500">🎂 Birthday contributions paid</span>
               <span className="font-semibold text-green-600">₦{bdayPaid.toLocaleString()}</span>
             </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-500">⏰ Late fees paid</span>
+              <span className="font-semibold text-green-600">₦{lateFeePaid.toLocaleString()}</span>
+            </div>
             <div className="flex items-center justify-between text-xs pt-1.5 border-t border-gray-100">
               <span className="text-gray-500">Total contributed</span>
-              <span className="font-bold text-green-700">₦{(weeklyPaid+bdayPaid).toLocaleString()}</span>
+              <span className="font-bold text-green-700">₦{(weeklyPaid+bdayPaid+lateFeePaid).toLocaleString()}</span>
             </div>
           </div>
 
@@ -394,6 +415,11 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
               <span className="text-gray-500">Birthday dues owed</span>
               <span className={`font-semibold ${bdayDebt>0?'text-red-600':'text-gray-400'}`}>₦{bdayDebt.toLocaleString()}</span>
             </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-500">Late fees owed</span>
+              <span className={`font-semibold ${lateFeeOwed>0?'text-red-600':'text-gray-400'}`}>₦{lateFeeOwed.toLocaleString()}</span>
+            </div>
+            {isAdmin&&lateFeeOwed>0&&<button onClick={()=>handleLateFeePayment(m.id,m.name,lateFeeOwed)} disabled={payingLateFeeId===m.id} className="w-full mt-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">{payingLateFeeId===m.id?'Recording...':'Mark Late Fee Paid'}</button>}
             <div className="flex items-center justify-between text-xs pt-1.5 border-t border-gray-100">
               <span className="text-gray-500">Total debt</span>
               {totalDebt>0
@@ -632,7 +658,7 @@ function ContributionsTab() {
 
 
 // ==================== BIRTHDAY CONTRIBUTIONS TAB ====================
-function BdayContribTab({ members }: { members: Member[] }) {
+function BdayContribTab({ members, onRefresh }: { members: Member[]; onRefresh: () => void }) {
   const [year, setYear] = useState(lagosNow().getFullYear()); const [selectedId, setSelectedId] = useState<number|null>(null);
   const [bdayList, setBdayList] = useState<Array<{id:number;name:string;birthMonth:number;birthDay:number;paidCount:number;totalPaid:number;paidOut:boolean}>>([]);
   const [contributors, setContributors] = useState<BdayContributor[]>([]); const [localPaid, setLocalPaid] = useState<Record<number,boolean>>({});
@@ -647,9 +673,9 @@ function BdayContribTab({ members }: { members: Member[] }) {
   const hasChanges=contributors.some(c=>c.paid===0&&localPaid[c.memberId]);
   const handleUpdate=async()=>{if(!selectedId)return;setUpdating(true);const ups=contributors.map(c=>({memberId:c.memberId,paid:localPaid[c.memberId]||false,amount:c.amount}));
     try{await api.updateBirthdayContributions(selectedId,year,ups);await selectMember(selectedId);await fetchList();}catch{}setUpdating(false);};
-  const handlePayout=async()=>{if(!selectedId)return;const tc=contributors.reduce((s,c)=>s+(localPaid[c.memberId]?c.amount:0),0);const sf=20000-tc;
-    if(!confirm(`Send ₦20,000 birthday payout to ${bdayName}?\n\nCollected: ₦${tc.toLocaleString()}\n${sf>0?`Shortfall: ₦${sf.toLocaleString()} from group funds\n`:''}`))return;
-    setPayingOut(true);try{await api.birthdayPayout(selectedId,year);await fetchList();await selectMember(selectedId);}catch{}setPayingOut(false);};
+  const handlePayout=async()=>{if(!selectedId)return;if(hasChanges){alert('Save the contribution updates before processing this payout.');return;}const tc=contributors.reduce((s,c)=>s+(localPaid[c.memberId]?c.amount:0),0);const sf=20000-tc;const debtorCount=contributors.filter(c=>!localPaid[c.memberId]).length;const lateFees=debtorCount*500;
+    if(!confirm(`Send ₦20,000 birthday payout to ${bdayName}?\n\nCollected: ₦${tc.toLocaleString()}\n${sf>0?`Shortfall: ₦${sf.toLocaleString()} from group funds\n`:''}Late fees to add: ₦${lateFees.toLocaleString()} (₦500 × ${debtorCount})`))return;
+    setPayingOut(true);try{const response=await api.birthdayPayout(selectedId,year);const data=await response.json();if(!response.ok||!data.success)throw new Error(data.error||'Payout failed');await fetchList();await selectMember(selectedId);await onRefresh();alert(`Payout completed. ₦${data.lateFeeTotal.toLocaleString()} in late fees was added to ${data.debtors.length} member${data.debtors.length===1?'':'s'}.`);}catch(error){alert(error instanceof Error?error.message:'Payout failed');}setPayingOut(false);};
 
   if(selectedId){
     const totalCollected=contributors.reduce((s,c)=>s+(localPaid[c.memberId]?c.amount:0),0);
@@ -670,8 +696,8 @@ function BdayContribTab({ members }: { members: Member[] }) {
         <td className="px-4 py-3 text-center"><button onClick={()=>togglePaid(c.memberId)} disabled={lk} className={`w-8 h-8 rounded-lg text-lg transition-all ${lk?'bg-green-100 text-green-600 cursor-not-allowed':ch?'bg-green-500 text-white hover:bg-green-600':'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>{ch?'✓':''}</button></td>
         <td className="px-4 py-3 text-center text-sm">{ch?<span className="text-green-600 font-medium">Paid</span>:isDebtor?<span className="text-red-600 font-medium">Debtor</span>:<span className="text-gray-400">—</span>}</td></tr>);})}</tbody></table></div></div>
       <button onClick={handleUpdate} disabled={updating||!hasChanges} className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 rounded-lg disabled:opacity-50">{updating?'Updating...':'✅ Update & Send to Group'}</button>
-      <button onClick={handlePayout} disabled={payingOut||paidOut} className={`w-full font-semibold py-3 rounded-lg ${paidOut?'bg-gray-300 text-gray-500 cursor-not-allowed':'bg-pink-500 hover:bg-pink-600 text-white disabled:opacity-50'}`}>{paidOut?'✅ ₦20,000 Payout Already Sent':payingOut?'Processing...':'💰 Send ₦20,000 Payout (₦'+totalCollected.toLocaleString()+' collected'+(shortfall>0?' + ₦'+shortfall.toLocaleString()+' from group':'')+')'}</button>
-      {paidOut&&debtors.length>0&&<div className="bg-yellow-50 rounded-xl p-4 text-sm text-yellow-700"><strong>ℹ️</strong> {debtors.length} member(s) still owe ₦{(debtors.length*1000).toLocaleString()}. When they pay, mark them and click Update — the amount will be returned to group funds.</div>}
+      <button onClick={handlePayout} disabled={payingOut||paidOut||hasChanges} className={`w-full font-semibold py-3 rounded-lg ${paidOut?'bg-gray-300 text-gray-500 cursor-not-allowed':'bg-pink-500 hover:bg-pink-600 text-white disabled:opacity-50'}`}>{paidOut?'✅ ₦20,000 Payout Already Sent':hasChanges?'Save Contribution Updates Before Payout':payingOut?'Processing...':'💰 Send ₦20,000 Payout (₦'+totalCollected.toLocaleString()+' collected'+(shortfall>0?' + ₦'+shortfall.toLocaleString()+' from group':'')+')'}</button>
+      {paidOut&&debtors.length>0&&<div className="bg-yellow-50 rounded-xl p-4 text-sm text-yellow-700"><strong>ℹ️</strong> {debtors.length} member(s) still owe ₦{(debtors.length*1000).toLocaleString()} in birthday contributions plus ₦{(debtors.length*500).toLocaleString()} in late fees. Contribution payments are recorded here; late-fee payments are recorded from the Members tab.</div>}
     </div>);
   }
 

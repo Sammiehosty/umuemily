@@ -447,28 +447,22 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
             </div>
           </div>
 
-          {(payoutTotal>0||supported>0||credited>0)&&(
-            <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
+          <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
               {supported>0&&(
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-500">🤝 Supported the group</span>
                   <span className="font-semibold text-purple-600">₦{supported.toLocaleString()}</span>
                 </div>
               )}
-              {credited>0&&(
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">💳 Credit received</span>
-                  <span className="font-semibold text-blue-600">₦{credited.toLocaleString()}</span>
-                </div>
-              )}
-              {payoutTotal>0&&(
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500">🎁 Birthday payout received</span>
-                  <span className="font-semibold text-pink-600">₦{payoutTotal.toLocaleString()}</span>
-                </div>
-              )}
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-500">🎁 Total payout received</span>
+              <span className="font-semibold text-pink-600">₦{payoutTotal.toLocaleString()}</span>
             </div>
-          )}
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-500">💳 Total credit sent</span>
+              <span className="font-semibold text-blue-600">₦{credited.toLocaleString()}</span>
+            </div>
+          </div>
         </div>);})}</div>
     </div>
   );

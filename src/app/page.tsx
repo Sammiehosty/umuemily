@@ -64,6 +64,7 @@ function monthSaturdays(ym: string): string[] {
   return out;
 }
 function fmtYM(ym: string) { const [y,m]=ym.split('-'); return `${MN[parseInt(m)-1]} ${y}`; }
+function fmtMoney(amount: number) { return amount.toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function txnColor(t: string) { if (t==='support'||t==='debt_recovery'||t==='late_fee_payment') return 'text-green-600'; if (t==='birthday_payout'||t==='weekly_deduction'||t==='credit'||t==='bank_charge') return 'text-red-600'; return 'text-gray-600'; }
 function txnSign(t: string) { if (t==='support'||t==='debt_recovery'||t==='late_fee_payment') return '+'; return '-'; }
 
@@ -186,7 +187,7 @@ function Dashboard({ onLogout, role }: { onLogout: () => void; role: Role }) {
 function DashboardTab({ data, finance, onRefresh, isAdmin }: { data: DashboardData|null; finance: FinanceData|null; onRefresh: () => void; isAdmin: boolean }) {
   const [showTxns, setShowTxns] = useState(false);
   const [showBankCharge,setShowBankCharge]=useState(false); const [bankChargeAmount,setBankChargeAmount]=useState(""); const [bankChargeDescription,setBankChargeDescription]=useState(""); const [savingBankCharge,setSavingBankCharge]=useState(false);
-  const recordBankCharge=async()=>{const amount=parseInt(bankChargeAmount,10);if(!amount||amount<=0)return;setSavingBankCharge(true);try{const response=await api.addBankCharge(amount,bankChargeDescription);const result=await response.json();if(!response.ok||!result.success)throw new Error(result.error||'Could not record bank charge');setShowBankCharge(false);setBankChargeAmount("");setBankChargeDescription("");await onRefresh();}catch(error){alert(error instanceof Error?error.message:'Could not record bank charge');}finally{setSavingBankCharge(false);}};
+  const recordBankCharge=async()=>{const amount=parseFloat(bankChargeAmount);if(!Number.isFinite(amount)||amount<=0)return;setSavingBankCharge(true);try{const response=await api.addBankCharge(amount,bankChargeDescription);const result=await response.json();if(!response.ok||!result.success)throw new Error(result.error||'Could not record bank charge');setShowBankCharge(false);setBankChargeAmount("");setBankChargeDescription("");await onRefresh();}catch(error){alert(error instanceof Error?error.message:'Could not record bank charge');}finally{setSavingBankCharge(false);}};
   if (!data) return <div className="text-center py-8 text-gray-500">Loading...</div>;
 
   const txnPanel = finance && showTxns ? (
@@ -201,7 +202,7 @@ function DashboardTab({ data, finance, onRefresh, isAdmin }: { data: DashboardDa
               <p className="text-xs text-gray-500 mt-1 truncate">{t.description}</p>
             </div>
             <div className="text-right ml-3 shrink-0">
-              <p className={`font-semibold ${txnColor(t.type)}`}>{txnSign(t.type)}₦{t.amount.toLocaleString()}</p>
+              <p className={`font-semibold ${txnColor(t.type)}`}>{txnSign(t.type)}₦{fmtMoney(t.amount)}</p>
               <p className="text-xs text-gray-400">{fmtDT(t.createdAt)}</p>
               {isAdmin && <button onClick={async()=>{if(confirm(`Delete this transaction?\n\n${t.description}\n₦${t.amount.toLocaleString()}\n\nThe funds will be reversed.`)){await api.deleteTransaction(t.id);onRefresh();}}} className="text-xs text-red-400 hover:text-red-600 mt-1">🗑️ Delete</button>}
             </div>
@@ -212,7 +213,7 @@ function DashboardTab({ data, finance, onRefresh, isAdmin }: { data: DashboardDa
 
   return (
     <div className="space-y-6">
-      {showBankCharge&&<div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4"><div><h3 className="text-lg font-bold text-gray-800">Record Bank Charge</h3><p className="text-sm text-gray-500 mt-1">This expense will be deducted from the group balance. No WhatsApp message will be sent.</p></div><div><label className="text-sm font-medium text-gray-700">Amount charged</label><input type="number" min="1" step="1" value={bankChargeAmount} onChange={e=>setBankChargeAmount(e.target.value)} placeholder="₦0" className="w-full mt-1 px-3 py-2 border rounded-lg" autoFocus/></div><div><label className="text-sm font-medium text-gray-700">Description (optional)</label><textarea value={bankChargeDescription} onChange={e=>setBankChargeDescription(e.target.value)} placeholder="e.g. Transfer charge for birthday payout" rows={3} className="w-full mt-1 px-3 py-2 border rounded-lg"/></div><div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-700">Bank charges will appear in Transactions and in the monthly financial report.</div><div className="flex gap-3"><button onClick={()=>setShowBankCharge(false)} disabled={savingBankCharge} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold disabled:opacity-50">Cancel</button><button onClick={recordBankCharge} disabled={savingBankCharge||!bankChargeAmount||parseInt(bankChargeAmount,10)<=0} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-lg font-semibold disabled:opacity-50">{savingBankCharge?'Recording...':'Record Charge'}</button></div></div></div>}
+      {showBankCharge&&<div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4"><div><h3 className="text-lg font-bold text-gray-800">Record Bank Charge</h3><p className="text-sm text-gray-500 mt-1">This expense will be deducted from the group balance. No WhatsApp message will be sent.</p></div><div><label className="text-sm font-medium text-gray-700">Amount charged</label><input type="number" min="0.01" step="0.01" value={bankChargeAmount} onChange={e=>setBankChargeAmount(e.target.value)} placeholder="₦0.00" className="w-full mt-1 px-3 py-2 border rounded-lg" autoFocus/></div><div><label className="text-sm font-medium text-gray-700">Description (optional)</label><textarea value={bankChargeDescription} onChange={e=>setBankChargeDescription(e.target.value)} placeholder="e.g. Transfer charge for birthday payout" rows={3} className="w-full mt-1 px-3 py-2 border rounded-lg"/></div><div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-700">Bank charges will appear in Transactions and in the monthly financial report.</div><div className="flex gap-3"><button onClick={()=>setShowBankCharge(false)} disabled={savingBankCharge} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold disabled:opacity-50">Cancel</button><button onClick={recordBankCharge} disabled={savingBankCharge||!bankChargeAmount||!Number.isFinite(parseFloat(bankChargeAmount))||parseFloat(bankChargeAmount)<=0} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-lg font-semibold disabled:opacity-50">{savingBankCharge?'Recording...':'Record Charge'}</button></div></div></div>}
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-xl font-bold text-gray-800">📊 Dashboard</h2>
         <div className="flex gap-2">
@@ -231,8 +232,8 @@ function DashboardTab({ data, finance, onRefresh, isAdmin }: { data: DashboardDa
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl p-4"><p className="text-xs opacity-80">Weekly Dues</p><p className="text-xl font-bold">₦{finance.weeklyTotal.toLocaleString()}</p></div>
           <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl p-4"><p className="text-xs opacity-80">Support + Recovered</p><p className="text-xl font-bold">₦{((finance.totalSupport||0)+(finance.totalDebtRecovery||0)).toLocaleString()}</p></div>
-          <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl p-4"><p className="text-xs opacity-80">Deducted</p><p className="text-xl font-bold">₦{finance.totalDeductions.toLocaleString()}</p></div>
-          <div className={`bg-gradient-to-r ${finance.balance<0?'from-red-500 to-red-600':'from-primary to-primary-dark'} text-white rounded-xl p-4`}><p className="text-xs opacity-80">Balance</p><p className="text-xl font-bold">{finance.balance<0?'-':''}₦{Math.abs(finance.balance).toLocaleString()}</p></div>
+          <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl p-4"><p className="text-xs opacity-80">Deducted</p><p className="text-xl font-bold">₦{fmtMoney(finance.totalDeductions)}</p></div>
+          <div className={`bg-gradient-to-r ${finance.balance<0?'from-red-500 to-red-600':'from-primary to-primary-dark'} text-white rounded-xl p-4`}><p className="text-xs opacity-80">Balance</p><p className="text-xl font-bold">{finance.balance<0?'-':''}₦{fmtMoney(Math.abs(finance.balance))}</p></div>
         </div>
       )}
       {txnPanel}

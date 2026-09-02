@@ -8,7 +8,8 @@ type ScheduledMessage = { id: number; message: string; scheduledAt: string; stat
 type ContributionRecord = { memberId: number; memberName: string; yearMonth: string; week1: number; week2: number; week3: number; week4: number; week5: number; memberTotal?: number };
 type DashboardData = { upcomingBirthdays: Array<{ id: number; name: string; birthMonth: number; birthDay: number; daysUntil: number }>; upcomingScheduled: ScheduledMessage[]; recentLogs: LogEntry[]; stats: { totalMembers: number; totalMessagesSent: number; pendingScheduled: number; upcomingBirthdays: number }; waClient: { configured: boolean; groupId: string; groupName: string; instanceId: string }; serverTime: string; timezone: string };
 type Settings = Record<string, string>;
-type MemberStats = { memberId: number; memberName: string; totalContributed: number; birthdayContributed: number; weeklyDebt: number; birthdayDebt: number; lateFeeOwed: number; lateFeePaid: number; totalDebt: number; birthdayPayoutReceived: number; birthdayPayoutToday: number; totalSupported: number; totalCredited: number; creditToday: number };
+type LateFee = { id: number; birthdayMemberId: number; birthdayMemberName: string; year: number; amount: number; chargedAt: string };
+type MemberStats = { memberId: number; memberName: string; totalContributed: number; birthdayContributed: number; weeklyDebt: number; birthdayDebt: number; lateFeeOwed: number; lateFeePaid: number; lateFees: LateFee[]; totalDebt: number; birthdayPayoutReceived: number; birthdayPayoutToday: number; totalSupported: number; totalCredited: number; creditToday: number };
 type FinanceData = { weeklyTotal: number; totalSupport: number; totalDebtRecovery: number; totalLateFeesOwed: number; totalLateFeesPaid: number; totalBirthdayContributed: number; totalContributionsBalance: number; totalDeductions: number; balance: number; outstandingDebt: number; trackedMonths?: number; transactions: Array<{ id: number; type: string; amount: number; description: string; memberName: string; createdAt: string }>; memberTotals: MemberStats[] };
 type BdayContributor = { memberId: number; memberName: string; paid: number; amount: number };
 type Role = 'admin' | 'contrib';
@@ -260,19 +261,34 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
   const [creditName, setCreditName] = useState(""); const [creditAmt, setCreditAmt] = useState(""); const [creditDesc, setCreditDesc] = useState(""); const [crediting, setCrediting] = useState(false);
   const [supName, setSupName] = useState(""); const [supAmt, setSupAmt] = useState(""); const [supDesc, setSupDesc] = useState(""); const [supporting, setSupporting] = useState(false);
   const [payingLateFeeId, setPayingLateFeeId] = useState<number|null>(null);
+  const [lateFeeMember, setLateFeeMember] = useState<MemberStats|null>(null);
+  const [selectedFeeIds, setSelectedFeeIds] = useState<Record<number,boolean>>({});
+  const [waFailure, setWaFailure] = useState<{logId:number;label:string}|null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   const reset = () => { setName(""); setBm(1); setBd(1); setEditId(null); setShowForm(false); };
   const submit = async (e: React.FormEvent) => { e.preventDefault(); if(editId) await api.updateMember(editId,name,bm,bd); else await api.addMember(name,bm,bd); reset(); onRefresh(); };
   const edit = (m: Member) => { setEditId(m.id); setName(m.name); setBm(m.birthMonth); setBd(m.birthDay); setShowForm(true); setActivePanel('none'); };
   const handleCredit = async () => { if (!creditName||!creditAmt||!creditDesc) return; setCrediting(true); await api.sendCredit(creditName, parseInt(creditAmt), creditDesc); setCreditName(""); setCreditAmt(""); setCreditDesc(""); setCrediting(false); setActivePanel('none'); onRefresh(); };
   const handleSupport = async () => { if (!supName||!supAmt) return; setSupporting(true); await api.sendSupport(supName, parseInt(supAmt), supDesc); setSupName(""); setSupAmt(""); setSupDesc(""); setSupporting(false); setActivePanel('none'); onRefresh(); };
-  const handleLateFeePayment = async (memberId: number, memberName: string, amount: number) => {
-    if (!confirm(`Mark ${memberName}'s ₦${amount.toLocaleString()} late fee${amount===500?'':'s'} as paid?`)) return;
-    setPayingLateFeeId(memberId);
+  const openLateFeePayment = (member: MemberStats) => {
+    setLateFeeMember(member);
+    const selected:Record<number,boolean>={};
+    member.lateFees.forEach(fee=>{selected[fee.id]=true;});
+    setSelectedFeeIds(selected);
+  };
+  const handleLateFeePayment = async () => {
+    if (!lateFeeMember) return;
+    const feeIds=lateFeeMember.lateFees.filter(f=>selectedFeeIds[f.id]).map(f=>f.id);
+    if (!feeIds.length) return;
+    setPayingLateFeeId(lateFeeMember.memberId);
     try {
-      const response = await api.payLateFees(memberId);
+      const response = await api.payLateFees(lateFeeMember.memberId,feeIds);
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Could not record late-fee payment');
+      if (!data.waSent) setWaFailure({logId:data.logId,label:lateFeeMember.memberName+`'s late-fee payment`});
+      else setWaFailure(null);
+      setLateFeeMember(null);
       await onRefresh();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Could not record late-fee payment');
@@ -280,12 +296,15 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
       setPayingLateFeeId(null);
     }
   };
+  const retryWhatsApp=async()=>{if(!waFailure)return;setRetrying(true);try{const response=await api.retryMessage(waFailure.logId);const data=await response.json();if(!response.ok||!data.success)throw new Error(data.error||'Retry failed');setWaFailure(null);await onRefresh();}catch(error){alert(error instanceof Error?error.message:'Retry failed');}finally{setRetrying(false);}};
 
   const statsMap: Record<number, MemberStats> = {};
   finance?.memberTotals?.forEach(mt => { statsMap[mt.memberId] = mt; });
 
   return (
     <div className="space-y-4">
+      {waFailure&&<div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between gap-3"><div><p className="font-semibold text-red-700">WhatsApp message failed</p><p className="text-xs text-red-600">The payment was saved, but {waFailure.label} was not announced.</p></div><button onClick={retryWhatsApp} disabled={retrying} className="shrink-0 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50">{retrying?'Retrying...':'Retry WhatsApp'}</button></div>}
+      {lateFeeMember&&(()=>{const selected=lateFeeMember.lateFees.filter(f=>selectedFeeIds[f.id]);const selectedTotal=selected.reduce((sum,fee)=>sum+fee.amount,0);const remaining=lateFeeMember.lateFeeOwed-selectedTotal;return <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-5 space-y-4"><div className="flex items-center justify-between"><div><h3 className="font-bold text-gray-800">Record Late-Fee Payment</h3><p className="text-sm text-gray-500">{lateFeeMember.memberName}</p></div><button onClick={()=>setLateFeeMember(null)} className="text-gray-400 hover:text-gray-700 text-xl">×</button></div><div className="max-h-64 overflow-y-auto space-y-2">{lateFeeMember.lateFees.map(fee=><label key={fee.id} className="flex items-center gap-3 border rounded-lg p-3 cursor-pointer hover:bg-gray-50"><input type="checkbox" checked={!!selectedFeeIds[fee.id]} onChange={e=>setSelectedFeeIds(current=>({...current,[fee.id]:e.target.checked}))} className="w-4 h-4"/><div className="flex-1"><p className="text-sm font-medium text-gray-800">{fee.birthdayMemberName}&apos;s {fee.year} birthday</p><p className="text-xs text-gray-500">Charged {fmtDT(fee.chargedAt)}</p></div><span className="font-semibold text-orange-600">₦{fee.amount.toLocaleString()}</span></label>)}</div><div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1"><div className="flex justify-between"><span>Selected payment</span><strong>₦{selectedTotal.toLocaleString()}</strong></div><div className="flex justify-between"><span>Remaining late fees</span><strong className={remaining>0?'text-red-600':'text-green-600'}>₦{remaining.toLocaleString()}</strong></div></div><p className="text-xs text-gray-500">A payment confirmation will be sent to the WhatsApp group.</p><div className="flex gap-2"><button onClick={()=>setLateFeeMember(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 py-2 rounded-lg text-sm">Cancel</button><button onClick={handleLateFeePayment} disabled={!selected.length||payingLateFeeId===lateFeeMember.memberId} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-semibold disabled:opacity-50">{payingLateFeeId===lateFeeMember.memberId?'Recording...':`Confirm ₦${selectedTotal.toLocaleString()}`}</button></div></div></div>;})()}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold text-gray-800">👥 Family Members ({members.length})</h2>
         {isAdmin && <div className="flex gap-2 flex-wrap">
@@ -419,7 +438,7 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
               <span className="text-gray-500">Late fees owed</span>
               <span className={`font-semibold ${lateFeeOwed>0?'text-red-600':'text-gray-400'}`}>₦{lateFeeOwed.toLocaleString()}</span>
             </div>
-            {isAdmin&&lateFeeOwed>0&&<button onClick={()=>handleLateFeePayment(m.id,m.name,lateFeeOwed)} disabled={payingLateFeeId===m.id} className="w-full mt-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">{payingLateFeeId===m.id?'Recording...':'Mark Late Fee Paid'}</button>}
+            {lateFeeOwed>0&&s&&<button onClick={()=>openLateFeePayment(s)} disabled={payingLateFeeId===m.id} className="w-full mt-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">{payingLateFeeId===m.id?'Recording...':'Select & Mark Late Fee Paid'}</button>}
             <div className="flex items-center justify-between text-xs pt-1.5 border-t border-gray-100">
               <span className="text-gray-500">Total debt</span>
               {totalDebt>0
@@ -664,6 +683,7 @@ function BdayContribTab({ members, onRefresh }: { members: Member[]; onRefresh: 
   const [contributors, setContributors] = useState<BdayContributor[]>([]); const [localPaid, setLocalPaid] = useState<Record<number,boolean>>({});
   const [loading, setLoading] = useState(true); const [updating, setUpdating] = useState(false); const [bdayName, setBdayName] = useState(""); const [payingOut, setPayingOut] = useState(false);
   const [paidOut, setPaidOut] = useState(false);
+  const [waFailure, setWaFailure] = useState<{logId:number;label:string}|null>(null); const [retrying, setRetrying] = useState(false);
 
   const fetchList = async()=>{setLoading(true);try{const r=await api.getBirthdayContributions(year);const d=await r.json();setBdayList(d.members||[]);}catch{}setLoading(false);};
   useEffect(()=>{fetchList();},[year]);
@@ -675,7 +695,8 @@ function BdayContribTab({ members, onRefresh }: { members: Member[]; onRefresh: 
     try{await api.updateBirthdayContributions(selectedId,year,ups);await selectMember(selectedId);await fetchList();}catch{}setUpdating(false);};
   const handlePayout=async()=>{if(!selectedId)return;if(hasChanges){alert('Save the contribution updates before processing this payout.');return;}const tc=contributors.reduce((s,c)=>s+(localPaid[c.memberId]?c.amount:0),0);const sf=20000-tc;const debtorCount=contributors.filter(c=>!localPaid[c.memberId]).length;const lateFees=debtorCount*500;
     if(!confirm(`Send ₦20,000 birthday payout to ${bdayName}?\n\nCollected: ₦${tc.toLocaleString()}\n${sf>0?`Shortfall: ₦${sf.toLocaleString()} from group funds\n`:''}Late fees to add: ₦${lateFees.toLocaleString()} (₦500 × ${debtorCount})`))return;
-    setPayingOut(true);try{const response=await api.birthdayPayout(selectedId,year);const data=await response.json();if(!response.ok||!data.success)throw new Error(data.error||'Payout failed');await fetchList();await selectMember(selectedId);await onRefresh();alert(`Payout completed. ₦${data.lateFeeTotal.toLocaleString()} in late fees was added to ${data.debtors.length} member${data.debtors.length===1?'':'s'}.`);}catch(error){alert(error instanceof Error?error.message:'Payout failed');}setPayingOut(false);};
+    setPayingOut(true);try{const response=await api.birthdayPayout(selectedId,year);const data=await response.json();if(!response.ok||!data.success)throw new Error(data.error||'Payout failed');if(!data.waSent)setWaFailure({logId:data.logId,label:bdayName+' payout'});else setWaFailure(null);await fetchList();await selectMember(selectedId);await onRefresh();alert(`Payout completed. ₦${data.lateFeeTotal.toLocaleString()} in late fees was added to ${data.debtors.length} member${data.debtors.length===1?'':'s'}.${data.waSent?'':' The WhatsApp message failed; use Retry WhatsApp.'}`);}catch(error){alert(error instanceof Error?error.message:'Payout failed');}setPayingOut(false);};
+  const retryWhatsApp=async()=>{if(!waFailure)return;setRetrying(true);try{const response=await api.retryMessage(waFailure.logId);const data=await response.json();if(!response.ok||!data.success)throw new Error(data.error||'Retry failed');setWaFailure(null);await onRefresh();}catch(error){alert(error instanceof Error?error.message:'Retry failed');}finally{setRetrying(false);}};
 
   if(selectedId){
     const totalCollected=contributors.reduce((s,c)=>s+(localPaid[c.memberId]?c.amount:0),0);
@@ -683,6 +704,7 @@ function BdayContribTab({ members, onRefresh }: { members: Member[]; onRefresh: 
     const BDAY_PAYOUT=20000; const shortfall=BDAY_PAYOUT-totalCollected;
     return(
     <div className="space-y-4">
+      {waFailure&&<div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between gap-3"><div><p className="font-semibold text-red-700">WhatsApp message failed</p><p className="text-xs text-red-600">The payout and late fees were saved, but the {waFailure.label} announcement was not sent.</p></div><button onClick={retryWhatsApp} disabled={retrying} className="shrink-0 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50">{retrying?'Retrying...':'Retry WhatsApp'}</button></div>}
       <div className="flex items-center gap-2 flex-wrap"><button onClick={()=>setSelectedId(null)} className="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg text-sm">← Back</button><h2 className="text-xl font-bold text-gray-800">🎂 {bdayName}&apos;s Birthday Fund</h2>{paidOut&&<span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">✅ Paid Out</span>}</div>
       <div className="bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-xl p-4">
         <div className="flex items-center justify-between mb-2"><div><p className="text-sm opacity-80">Birthday Fund</p><p className="text-lg font-bold">{bdayName}</p></div><div className="text-right"><p className="text-3xl font-bold">₦{totalCollected.toLocaleString()}</p><p className="text-sm opacity-80">of ₦{BDAY_PAYOUT.toLocaleString()} payout</p></div></div>
@@ -832,10 +854,12 @@ function SettingsTab({ settings, onRefresh, isAdmin }: { settings: Settings; onR
 
 // ==================== LOGS TAB ====================
 function LogsTab({ logs, onRefresh }: { logs: LogEntry[]; onRefresh: () => void }) {
+  const [retryingId,setRetryingId]=useState<number|null>(null);
+  const retry=async(logId:number)=>{setRetryingId(logId);try{const response=await api.retryMessage(logId);const data=await response.json();if(!response.ok||!data.success)throw new Error(data.error||'Retry failed');await onRefresh();}catch(error){alert(error instanceof Error?error.message:'Retry failed');}finally{setRetryingId(null);}};
   return(
     <div className="space-y-4"><div className="flex items-center justify-between"><h2 className="text-xl font-bold text-gray-800">📋 Message Logs</h2><button onClick={onRefresh} className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm">🔄</button></div>
       {logs.length===0?<div className="bg-white rounded-xl p-8 text-center shadow-sm"><p className="text-gray-500">No messages yet</p></div>:
-      <div className="max-h-[600px] overflow-y-auto space-y-2 pr-1">{logs.map(l=><div key={l.id} className="bg-white rounded-xl p-4 shadow-sm"><div className="flex items-start justify-between flex-wrap gap-2"><div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${l.status==="sent"?"bg-green-500":"bg-red-500"}`}></span><span className="font-medium text-gray-800">{l.memberName}</span><span className={`text-xs px-2 py-0.5 rounded-full ${l.messageType==="birthday"?"bg-pink-100 text-pink-700":l.messageType==="contribution"?"bg-green-100 text-green-700":l.messageType==="birthday_contribution"||l.messageType==="birthday_payout"?"bg-pink-100 text-pink-700":l.messageType==="credit"?"bg-blue-100 text-blue-700":"bg-purple-100 text-purple-700"}`}>{l.messageType}</span></div><span className="text-xs text-gray-400">{fmtDT(l.sentAt)}</span></div><p className="text-sm text-gray-500 mt-2 whitespace-pre-wrap line-clamp-3">{l.message}</p></div>)}</div>}
+      <div className="max-h-[600px] overflow-y-auto space-y-2 pr-1">{logs.map(l=><div key={l.id} className="bg-white rounded-xl p-4 shadow-sm"><div className="flex items-start justify-between flex-wrap gap-2"><div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${l.status==="sent"?"bg-green-500":"bg-red-500"}`}></span><span className="font-medium text-gray-800">{l.memberName}</span><span className={`text-xs px-2 py-0.5 rounded-full ${l.messageType==="birthday"?"bg-pink-100 text-pink-700":l.messageType==="contribution"?"bg-green-100 text-green-700":l.messageType==="birthday_contribution"||l.messageType==="birthday_payout"?"bg-pink-100 text-pink-700":l.messageType==="credit"?"bg-blue-100 text-blue-700":"bg-purple-100 text-purple-700"}`}>{l.messageType}</span></div><div className="flex items-center gap-2"><span className="text-xs text-gray-400">{fmtDT(l.sentAt)}</span>{l.status!=="sent"&&<button onClick={()=>retry(l.id)} disabled={retryingId===l.id} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50">{retryingId===l.id?'Retrying...':'Retry WhatsApp'}</button>}</div></div><p className="text-sm text-gray-500 mt-2 whitespace-pre-wrap line-clamp-3">{l.message}</p></div>)}</div>}
     </div>
   );
 }

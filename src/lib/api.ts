@@ -29,6 +29,7 @@ export const api = {
   // Finance
   getFinance: () => fetch(`${API_BASE_URL}/api/finance.php`),
   sendCredit: (memberName: string, amount: number, description: string) => fetch(`${API_BASE_URL}/api/finance.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'credit', memberName, amount, description }) }),
+  addBankCharge: (amount: number, description: string) => fetch(`${API_BASE_URL}/api/finance.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'bank_charge', amount, description }) }),
   payLateFees: (memberId: number, feeIds: number[]) => fetch(`${API_BASE_URL}/api/finance.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'pay_late_fees', memberId, feeIds }) }),
   retryMessage: (logId: number) => fetch(`${API_BASE_URL}/api/retry-message.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logId }) }),
   deleteTransaction: (id: number) => fetch(`${API_BASE_URL}/api/finance.php`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),

@@ -10,7 +10,7 @@ type DashboardData = { upcomingBirthdays: Array<{ id: number; name: string; birt
 type Settings = Record<string, string>;
 type LateFee = { id: number; birthdayMemberId: number; birthdayMemberName: string; year: number; amount: number; chargedAt: string };
 type MemberStats = { memberId: number; memberName: string; totalContributed: number; birthdayContributed: number; weeklyDebt: number; birthdayDebt: number; lateFeeOwed: number; lateFeePaid: number; lateFees: LateFee[]; totalDebt: number; birthdayPayoutReceived: number; birthdayPayoutToday: number; totalSupported: number; totalCredited: number; creditToday: number };
-type FinanceData = { weeklyTotal: number; totalSupport: number; totalDebtRecovery: number; totalLateFeesOwed: number; totalLateFeesPaid: number; totalBirthdayContributed: number; totalContributionsBalance: number; totalDeductions: number; balance: number; outstandingDebt: number; trackedMonths?: number; transactions: Array<{ id: number; type: string; amount: number; description: string; memberName: string; createdAt: string }>; memberTotals: MemberStats[] };
+type FinanceData = { weeklyTotal: number; totalSupport: number; totalDebtRecovery: number; totalLateFeesOwed: number; totalLateFeesPaid: number; totalBirthdayContributed: number; totalContributionsBalance: number; totalBankCharges: number; totalDeductions: number; balance: number; outstandingDebt: number; trackedMonths?: number; transactions: Array<{ id: number; type: string; amount: number; description: string; memberName: string; createdAt: string }>; memberTotals: MemberStats[] };
 type BdayContributor = { memberId: number; memberName: string; paid: number; amount: number };
 type Role = 'admin' | 'contrib';
 
@@ -64,7 +64,7 @@ function monthSaturdays(ym: string): string[] {
   return out;
 }
 function fmtYM(ym: string) { const [y,m]=ym.split('-'); return `${MN[parseInt(m)-1]} ${y}`; }
-function txnColor(t: string) { if (t==='support'||t==='debt_recovery'||t==='late_fee_payment') return 'text-green-600'; if (t==='birthday_payout'||t==='weekly_deduction'||t==='credit') return 'text-red-600'; return 'text-gray-600'; }
+function txnColor(t: string) { if (t==='support'||t==='debt_recovery'||t==='late_fee_payment') return 'text-green-600'; if (t==='birthday_payout'||t==='weekly_deduction'||t==='credit'||t==='bank_charge') return 'text-red-600'; return 'text-gray-600'; }
 function txnSign(t: string) { if (t==='support'||t==='debt_recovery'||t==='late_fee_payment') return '+'; return '-'; }
 
 // ==================== LOGIN ====================
@@ -185,6 +185,8 @@ function Dashboard({ onLogout, role }: { onLogout: () => void; role: Role }) {
 // ==================== DASHBOARD TAB ====================
 function DashboardTab({ data, finance, onRefresh, isAdmin }: { data: DashboardData|null; finance: FinanceData|null; onRefresh: () => void; isAdmin: boolean }) {
   const [showTxns, setShowTxns] = useState(false);
+  const [showBankCharge,setShowBankCharge]=useState(false); const [bankChargeAmount,setBankChargeAmount]=useState(""); const [bankChargeDescription,setBankChargeDescription]=useState(""); const [savingBankCharge,setSavingBankCharge]=useState(false);
+  const recordBankCharge=async()=>{const amount=parseInt(bankChargeAmount,10);if(!amount||amount<=0)return;setSavingBankCharge(true);try{const response=await api.addBankCharge(amount,bankChargeDescription);const result=await response.json();if(!response.ok||!result.success)throw new Error(result.error||'Could not record bank charge');setShowBankCharge(false);setBankChargeAmount("");setBankChargeDescription("");await onRefresh();}catch(error){alert(error instanceof Error?error.message:'Could not record bank charge');}finally{setSavingBankCharge(false);}};
   if (!data) return <div className="text-center py-8 text-gray-500">Loading...</div>;
 
   const txnPanel = finance && showTxns ? (
@@ -210,10 +212,12 @@ function DashboardTab({ data, finance, onRefresh, isAdmin }: { data: DashboardDa
 
   return (
     <div className="space-y-6">
+      {showBankCharge&&<div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4"><div><h3 className="text-lg font-bold text-gray-800">Record Bank Charge</h3><p className="text-sm text-gray-500 mt-1">This expense will be deducted from the group balance. No WhatsApp message will be sent.</p></div><div><label className="text-sm font-medium text-gray-700">Amount charged</label><input type="number" min="1" step="1" value={bankChargeAmount} onChange={e=>setBankChargeAmount(e.target.value)} placeholder="₦0" className="w-full mt-1 px-3 py-2 border rounded-lg" autoFocus/></div><div><label className="text-sm font-medium text-gray-700">Description (optional)</label><textarea value={bankChargeDescription} onChange={e=>setBankChargeDescription(e.target.value)} placeholder="e.g. Transfer charge for birthday payout" rows={3} className="w-full mt-1 px-3 py-2 border rounded-lg"/></div><div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-700">Bank charges will appear in Transactions and in the monthly financial report.</div><div className="flex gap-3"><button onClick={()=>setShowBankCharge(false)} disabled={savingBankCharge} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold disabled:opacity-50">Cancel</button><button onClick={recordBankCharge} disabled={savingBankCharge||!bankChargeAmount||parseInt(bankChargeAmount,10)<=0} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2.5 rounded-lg font-semibold disabled:opacity-50">{savingBankCharge?'Recording...':'Record Charge'}</button></div></div></div>}
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-xl font-bold text-gray-800">📊 Dashboard</h2>
         <div className="flex gap-2">
           <button onClick={()=>setShowTxns(!showTxns)} className={`px-4 py-2 rounded-lg text-sm font-medium ${showTxns?'bg-primary text-white':'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}>{showTxns?'Hide':'💳 Transactions'}</button>
+          {showTxns&&<button onClick={()=>setShowBankCharge(true)} className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-4 py-2 rounded-lg text-sm font-medium">🏦 Bank Charges</button>}
           <button onClick={onRefresh} className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm">🔄</button>
         </div>
       </div>

@@ -334,16 +334,16 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
         </form>
       )}
       {finance&&finance.memberTotals&&finance.memberTotals.length>0&&(()=>{
-        const debtAll=finance.memberTotals.reduce((t,x)=>t+x.totalDebt,0);
-        const supportAll=finance.memberTotals.reduce((t,x)=>t+(x.totalSupported||0),0);
         const debtors=finance.memberTotals.filter(x=>x.totalDebt>0).length;
+        const overallTotal=finance.weeklyTotal+finance.totalBirthdayContributed+finance.totalSupport+finance.totalLateFeesPaid;
         return(
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className="text-lg font-bold text-green-600">₦{finance.totalContributionsBalance.toLocaleString()}</div><div className="text-xs text-gray-500">Total Contributions Balance</div></div>
+            <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className="text-lg font-bold text-green-600">₦{finance.weeklyTotal.toLocaleString()}</div><div className="text-xs text-gray-500">Total Weekly Dues</div></div>
+            <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className="text-lg font-bold text-pink-600">₦{finance.totalBirthdayContributed.toLocaleString()}</div><div className="text-xs text-gray-500">Total Birthday Contributions</div></div>
+            <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className="text-lg font-bold text-purple-600">₦{finance.totalSupport.toLocaleString()}</div><div className="text-xs text-gray-500">Total Support</div></div>
             <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className={`text-lg font-bold ${finance.totalLateFeesOwed>0?'text-red-600':'text-green-600'}`}>₦{finance.totalLateFeesOwed.toLocaleString()}</div><div className="text-xs text-gray-500">Total Late Fees Owed</div></div>
-            <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className={`text-lg font-bold ${debtAll>0?'text-red-600':'text-green-600'}`}>₦{debtAll.toLocaleString()}</div><div className="text-xs text-gray-500">Total Outstanding</div></div>
-            <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className="text-lg font-bold text-purple-600">₦{supportAll.toLocaleString()}</div><div className="text-xs text-gray-500">Total Support</div></div>
             <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className={`text-lg font-bold ${debtors>0?'text-orange-600':'text-green-600'}`}>{debtors}</div><div className="text-xs text-gray-500">Members Owing</div></div>
+            <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className="text-lg font-bold text-blue-700">₦{overallTotal.toLocaleString()}</div><div className="text-xs text-gray-500">Overall Total</div></div>
           </div>
         );
       })()}

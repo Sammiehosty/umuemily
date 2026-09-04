@@ -802,13 +802,14 @@ function SettingsTab({ settings, onRefresh, isAdmin }: { settings: Settings; onR
   const [at, setAt] = useState(settings.whatsapp_access_token||""); const [ii, setIi] = useState(settings.whatsapp_instance_id||""); const [gi, setGi] = useState(settings.whatsapp_group_id||"");
   const [gn, setGn] = useState(settings.whatsapp_group_name||""); const [cs, setCs] = useState(settings.cron_secret||""); const [ad, setAd] = useState(settings.account_details||"");
   const [sig, setSig] = useState(settings.report_signature_name||"");
+  const [autoDebtorsReport, setAutoDebtorsReport] = useState(settings.automatic_debtors_report_enabled==='1');
   const [m7, setM7] = useState(settings.message_7day||""); const [m1, setM1] = useState(settings.message_1day||""); const [mb, setMb] = useState(settings.message_birthday||"");
   const [pw, setPw] = useState(""); const [cpw, setCpw] = useState(""); const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false); const [saveError, setSaveError] = useState("");
   const save=async()=>{
     setSaving(true);setSaved(false);setSaveError("");
     const rawGroupId=gi.trim().replace(/\s+/g,'');
     const normalizedGroupId=rawGroupId&&/^[0-9-]+$/.test(rawGroupId)?`${rawGroupId}@g.us`:rawGroupId.toLowerCase();
-    const u:Record<string,string>={whatsapp_access_token:at,whatsapp_instance_id:ii,whatsapp_group_id:normalizedGroupId,whatsapp_group_name:gn,cron_secret:cs,account_details:ad,report_signature_name:sig,message_7day:m7,message_1day:m1,message_birthday:mb};
+    const u:Record<string,string>={whatsapp_access_token:at,whatsapp_instance_id:ii,whatsapp_group_id:normalizedGroupId,whatsapp_group_name:gn,cron_secret:cs,account_details:ad,report_signature_name:sig,automatic_debtors_report_enabled:autoDebtorsReport?'1':'0',message_7day:m7,message_1day:m1,message_birthday:mb};
     if(pw)u.app_password=pw;if(cpw)u.contrib_admin_password=cpw;
     try{
       const response=await api.updateSettings(u);const data=await response.json();
@@ -835,6 +836,8 @@ function SettingsTab({ settings, onRefresh, isAdmin }: { settings: Settings; onR
       <div className="bg-white rounded-xl p-4 shadow-sm space-y-3"><h3 className="font-semibold text-gray-700">Cron Job</h3>
         <input type="text" value={cs} onChange={e=>setCs(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Cron Secret" />
         <div className="bg-gray-50 p-3 rounded-lg text-xs font-mono break-all border">{cronUrl}</div>
+        <label className="flex items-center justify-between gap-4 border rounded-lg p-3 cursor-pointer"><div><p className="text-sm font-semibold text-gray-700">Automatic Debtors Report</p><p className="text-xs text-gray-500">Send to the WhatsApp group every Saturday at 2:00 PM WAT.</p></div><input type="checkbox" checked={autoDebtorsReport} onChange={e=>setAutoDebtorsReport(e.target.checked)} className="w-5 h-5" /></label>
+        <p className="text-xs text-orange-600">Your hosting cron job must call this URL regularly, including shortly after 2:00 PM on Saturdays.</p>
       </div>
       <div className="bg-white rounded-xl p-4 shadow-sm space-y-3"><h3 className="font-semibold text-gray-700">🏦 Account Details</h3><p className="text-xs text-gray-500">Included in WhatsApp notifications</p>
         <textarea value={ad} onChange={e=>setAd(e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder={"Bank: Access Bank\nAccount Name: Umu Emily\nAccount Number: 1234567890"} />

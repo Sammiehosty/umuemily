@@ -11,11 +11,11 @@ export const metadata: Metadata = {
     description: "United by Blood, Strengthened by Love.",
     url: "https://umuemily.vercel.app",
     siteName: "Umu Emily Grandchildren",
-    images: [{ url: "/umu-emily-family.jpg", width: 640, height: 640, alt: "Umu Emily Family crest" }],
+    images: [{ url: "/umu-emily-family.jpg", width: 300, height: 300, alt: "Umu Emily Family crest" }],
     type: "website",
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     title: "Umu Emily Grandchildren",
     description: "United by Blood, Strengthened by Love.",
     images: ["/umu-emily-family.jpg"],

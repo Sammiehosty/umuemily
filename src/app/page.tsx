@@ -801,6 +801,7 @@ function SendTab({ members, settings, onRefresh, isAdmin }: { members: Member[];
 function SettingsTab({ settings, onRefresh, isAdmin }: { settings: Settings; onRefresh: () => void; isAdmin: boolean }) {
   const [at, setAt] = useState(settings.whatsapp_access_token||""); const [ii, setIi] = useState(settings.whatsapp_instance_id||""); const [gi, setGi] = useState(settings.whatsapp_group_id||"");
   const [gn, setGn] = useState(settings.whatsapp_group_name||""); const [cs, setCs] = useState(settings.cron_secret||""); const [ad, setAd] = useState(settings.account_details||"");
+  const [publicAppUrl, setPublicAppUrl] = useState(settings.public_app_url||"");
   const [sig, setSig] = useState(settings.report_signature_name||"");
   const [autoDebtorsReport, setAutoDebtorsReport] = useState(settings.automatic_debtors_report_enabled==='1');
   const [m7, setM7] = useState(settings.message_7day||""); const [m1, setM1] = useState(settings.message_1day||""); const [mb, setMb] = useState(settings.message_birthday||"");
@@ -809,7 +810,7 @@ function SettingsTab({ settings, onRefresh, isAdmin }: { settings: Settings; onR
     setSaving(true);setSaved(false);setSaveError("");
     const rawGroupId=gi.trim().replace(/\s+/g,'');
     const normalizedGroupId=rawGroupId&&/^[0-9-]+$/.test(rawGroupId)?`${rawGroupId}@g.us`:rawGroupId.toLowerCase();
-    const u:Record<string,string>={whatsapp_access_token:at,whatsapp_instance_id:ii,whatsapp_group_id:normalizedGroupId,whatsapp_group_name:gn,cron_secret:cs,account_details:ad,report_signature_name:sig,automatic_debtors_report_enabled:autoDebtorsReport?'1':'0',message_7day:m7,message_1day:m1,message_birthday:mb};
+    const u:Record<string,string>={whatsapp_access_token:at,whatsapp_instance_id:ii,whatsapp_group_id:normalizedGroupId,whatsapp_group_name:gn,cron_secret:cs,account_details:ad,public_app_url:publicAppUrl.trim().replace(/\/+$/,''),report_signature_name:sig,automatic_debtors_report_enabled:autoDebtorsReport?'1':'0',message_7day:m7,message_1day:m1,message_birthday:mb};
     if(pw)u.app_password=pw;if(cpw)u.contrib_admin_password=cpw;
     try{
       const response=await api.updateSettings(u);const data=await response.json();
@@ -832,6 +833,7 @@ function SettingsTab({ settings, onRefresh, isAdmin }: { settings: Settings; onR
           <p className="text-xs text-gray-500 mt-1">Enter the full group ID ending in <strong>@g.us</strong>. If you enter only the numeric ID, the app adds @g.us automatically.</p>
         </div>
         <input type="text" value={gn} onChange={e=>setGn(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Group Name" />
+        <div><label className="block text-sm text-gray-600 mb-1">Public App URL</label><input type="url" value={publicAppUrl} onChange={e=>setPublicAppUrl(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="https://your-app.vercel.app"/><p className="text-xs text-gray-500 mt-1">Used to create the read-only report links included in WhatsApp messages.</p></div>
       </div>
       <div className="bg-white rounded-xl p-4 shadow-sm space-y-3"><h3 className="font-semibold text-gray-700">Cron Job</h3>
         <input type="text" value={cs} onChange={e=>setCs(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Cron Secret" />

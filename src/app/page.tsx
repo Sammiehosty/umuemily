@@ -270,6 +270,8 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
   const [selectedFeeIds, setSelectedFeeIds] = useState<Record<number,boolean>>({});
   const [waFailure, setWaFailure] = useState<{logId:number;label:string}|null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [showDebtorsConfirm, setShowDebtorsConfirm] = useState(false);
+  const [sendingDebtorsReport, setSendingDebtorsReport] = useState(false);
 
   const reset = () => { setName(""); setBm(1); setBd(1); setEditId(null); setShowForm(false); };
   const submit = async (e: React.FormEvent) => { e.preventDefault(); if(editId) await api.updateMember(editId,name,bm,bd); else await api.addMember(name,bm,bd); reset(); onRefresh(); };
@@ -302,21 +304,26 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
     }
   };
   const retryWhatsApp=async()=>{if(!waFailure)return;setRetrying(true);try{const response=await api.retryMessage(waFailure.logId);const data=await response.json();if(!response.ok||!data.success)throw new Error(data.error||'Retry failed');setWaFailure(null);await onRefresh();}catch(error){alert(error instanceof Error?error.message:'Retry failed');}finally{setRetrying(false);}};
+  const sendDebtorsReport=async()=>{setShowDebtorsConfirm(false);setSendingDebtorsReport(true);try{const response=await api.sendDebtorsReport();const data=await response.json();if(!response.ok||!data.success)throw new Error(data.error||'Could not send debtors report');if(!data.waSent)setWaFailure({logId:data.logId,label:'the debtors report'});else setWaFailure(null);await onRefresh();alert(data.waSent?`Debtors report sent for ${data.debtorCount} member${data.debtorCount===1?'':'s'}.`:'The report was saved, but WhatsApp sending failed. Use Retry WhatsApp.');}catch(error){alert(error instanceof Error?error.message:'Could not send debtors report');}finally{setSendingDebtorsReport(false);}};
 
   const statsMap: Record<number, MemberStats> = {};
   finance?.memberTotals?.forEach(mt => { statsMap[mt.memberId] = mt; });
 
   return (
     <div className="space-y-4">
-      {waFailure&&<div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between gap-3"><div><p className="font-semibold text-red-700">WhatsApp message failed</p><p className="text-xs text-red-600">The payment was saved, but {waFailure.label} was not announced.</p></div><button onClick={retryWhatsApp} disabled={retrying} className="shrink-0 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50">{retrying?'Retrying...':'Retry WhatsApp'}</button></div>}
+      {waFailure&&<div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between gap-3"><div><p className="font-semibold text-red-700">WhatsApp message failed</p><p className="text-xs text-red-600">{waFailure.label} was saved but not sent.</p></div><button onClick={retryWhatsApp} disabled={retrying} className="shrink-0 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50">{retrying?'Retrying...':'Retry WhatsApp'}</button></div>}
+      {showDebtorsConfirm&&<div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4"><div><h3 className="text-lg font-bold text-gray-800">Send Debtors Report?</h3><p className="text-sm text-gray-500 mt-1">The WhatsApp group will receive the names of all debtors and their current outstanding amounts.</p></div><div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-700">This only sends a report. It will not change balances or mark any debt as paid.</div><div className="flex gap-3"><button onClick={()=>setShowDebtorsConfirm(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold">Cancel</button><button onClick={sendDebtorsReport} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg font-semibold">Send Report</button></div></div></div>}
       {lateFeeMember&&(()=>{const selected=lateFeeMember.lateFees.filter(f=>selectedFeeIds[f.id]);const selectedTotal=selected.reduce((sum,fee)=>sum+fee.amount,0);const remaining=lateFeeMember.lateFeeOwed-selectedTotal;return <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-5 space-y-4"><div className="flex items-center justify-between"><div><h3 className="font-bold text-gray-800">Record Late-Fee Payment</h3><p className="text-sm text-gray-500">{lateFeeMember.memberName}</p></div><button onClick={()=>setLateFeeMember(null)} className="text-gray-400 hover:text-gray-700 text-xl">×</button></div><div className="max-h-64 overflow-y-auto space-y-2">{lateFeeMember.lateFees.map(fee=><label key={fee.id} className="flex items-center gap-3 border rounded-lg p-3 cursor-pointer hover:bg-gray-50"><input type="checkbox" checked={!!selectedFeeIds[fee.id]} onChange={e=>setSelectedFeeIds(current=>({...current,[fee.id]:e.target.checked}))} className="w-4 h-4"/><div className="flex-1"><p className="text-sm font-medium text-gray-800">{fee.birthdayMemberName}&apos;s {fee.year} birthday</p><p className="text-xs text-gray-500">Charged {fmtDT(fee.chargedAt)}</p></div><span className="font-semibold text-orange-600">₦{fee.amount.toLocaleString()}</span></label>)}</div><div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1"><div className="flex justify-between"><span>Selected payment</span><strong>₦{selectedTotal.toLocaleString()}</strong></div><div className="flex justify-between"><span>Remaining late fees</span><strong className={remaining>0?'text-red-600':'text-green-600'}>₦{remaining.toLocaleString()}</strong></div></div><p className="text-xs text-gray-500">A payment confirmation will be sent to the WhatsApp group.</p><div className="flex gap-2"><button onClick={()=>setLateFeeMember(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 py-2 rounded-lg text-sm">Cancel</button><button onClick={handleLateFeePayment} disabled={!selected.length||payingLateFeeId===lateFeeMember.memberId} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-semibold disabled:opacity-50">{payingLateFeeId===lateFeeMember.memberId?'Recording...':`Confirm ₦${selectedTotal.toLocaleString()}`}</button></div></div></div>;})()}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold text-gray-800">👥 Family Members ({members.length})</h2>
-        {isAdmin && <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={()=>setShowDebtorsConfirm(true)} disabled={sendingDebtorsReport||!finance} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50">{sendingDebtorsReport?'Sending...':'Send Report'}</button>
+          {isAdmin&&<>
           <button onClick={()=>{setActivePanel(activePanel==='support'?'none':'support');setShowForm(false);}} className={`px-3 py-2 rounded-lg text-sm font-medium ${activePanel==='support'?'bg-gray-300 text-gray-700':'bg-purple-500 hover:bg-purple-600 text-white'}`}>{activePanel==='support'?'Cancel':'🤝 Support'}</button>
           <button onClick={()=>{setActivePanel(activePanel==='credit'?'none':'credit');setShowForm(false);}} className={`px-3 py-2 rounded-lg text-sm font-medium ${activePanel==='credit'?'bg-gray-300 text-gray-700':'bg-blue-500 hover:bg-blue-600 text-white'}`}>{activePanel==='credit'?'Cancel':'💳 Credit'}</button>
           <button onClick={()=>{reset();setShowForm(!showForm);setActivePanel('none');}} className="bg-accent hover:bg-accent-dark text-white px-3 py-2 rounded-lg text-sm font-medium">{showForm?'Cancel':'+ Add'}</button>
-        </div>}
+          </>}
+        </div>
       </div>
       {isAdmin && activePanel==='support' && (
         <div className="bg-white rounded-xl p-4 shadow-sm space-y-3"><h3 className="font-semibold text-gray-700">🤝 Record Group Support</h3><p className="text-xs text-gray-500">When a member voluntarily supports the group</p>
@@ -431,18 +438,18 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
           </div>
 
           <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
+            {weeklyDebt>0&&<div className="flex items-center justify-between text-xs">
               <span className="text-gray-500">Weekly dues owed</span>
               <span className={`font-semibold ${weeklyDebt>0?'text-red-600':'text-gray-400'}`}>₦{weeklyDebt.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
+            </div>}
+            {bdayDebt>0&&<div className="flex items-center justify-between text-xs">
               <span className="text-gray-500">Birthday dues owed</span>
               <span className={`font-semibold ${bdayDebt>0?'text-red-600':'text-gray-400'}`}>₦{bdayDebt.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
+            </div>}
+            {lateFeeOwed>0&&<div className="flex items-center justify-between text-xs">
               <span className="text-gray-500">Late fees owed</span>
               <span className={`font-semibold ${lateFeeOwed>0?'text-red-600':'text-gray-400'}`}>₦{lateFeeOwed.toLocaleString()}</span>
-            </div>
+            </div>}
             {lateFeeOwed>0&&s&&<button onClick={()=>openLateFeePayment(s)} disabled={payingLateFeeId===m.id} className="w-full mt-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">{payingLateFeeId===m.id?'Recording...':'Select & Mark Late Fee Paid'}</button>}
             <div className="flex items-center justify-between text-xs pt-1.5 border-t border-gray-100">
               <span className="text-gray-500">Total debt</span>

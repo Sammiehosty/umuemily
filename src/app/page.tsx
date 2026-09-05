@@ -279,7 +279,7 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
   const [debtorsPreview, setDebtorsPreview] = useState('');
 
   const reset = () => { setName(""); setBm(1); setBd(1); setEditId(null); setShowForm(false); };
-  const submit = async (e: React.FormEvent) => { e.preventDefault(); if(editId) await api.updateMember(editId,name,bm,bd); else await api.addMember(name,bm,bd); reset(); onRefresh(); };
+  const submit = async (e: React.FormEvent) => { e.preventDefault(); try { const response=editId?await api.updateMember(editId,name,bm,bd):await api.addMember(name,bm,bd); const data=await response.json(); if(!response.ok)throw new Error(data.error||'Unable to save member'); reset(); onRefresh(); } catch(error) { alert(error instanceof Error?error.message:'Unable to save member'); } };
   const edit = (m: Member) => { setEditId(m.id); setName(m.name); setBm(m.birthMonth); setBd(m.birthDay); setShowForm(true); setActivePanel('none'); };
   const handleCredit = async () => { if (!creditName||!creditAmt||!creditDesc) return; setCrediting(true); await api.sendCredit(creditName, parseInt(creditAmt), creditDesc); setCreditName(""); setCreditAmt(""); setCreditDesc(""); setCrediting(false); setActivePanel('none'); onRefresh(); };
   const handleSupport = async () => { if (!supName||!supAmt) return; setSupporting(true); await api.sendSupport(supName, parseInt(supAmt), supDesc); setSupName(""); setSupAmt(""); setSupDesc(""); setSupporting(false); setActivePanel('none'); onRefresh(); };

@@ -33,6 +33,8 @@ export const api = {
   payLateFees: (memberId: number, feeIds: number[]) => fetch(`${API_BASE_URL}/api/finance.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'pay_late_fees', memberId, feeIds }) }),
   sendDebtorsReport: () => fetch(`${API_BASE_URL}/api/send-debtors-report.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   previewDebtorsReport: () => fetch(`${API_BASE_URL}/api/send-debtors-report.php`),
+  getPublicMemberReport: (id: number) => fetch(`${API_BASE_URL}/api/public-member-report.php?id=${id}`),
+  getPublicDebtorsReport: () => fetch(`${API_BASE_URL}/api/public-debtors-report.php`),
   retryMessage: (logId: number) => fetch(`${API_BASE_URL}/api/retry-message.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logId }) }),
   deleteTransaction: (id: number) => fetch(`${API_BASE_URL}/api/finance.php`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
   // Support

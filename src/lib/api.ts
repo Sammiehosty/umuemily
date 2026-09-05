@@ -24,6 +24,7 @@ export const api = {
   sendMessage: (memberName: string, messageType: string, message: string) => fetch(`${API_BASE_URL}/api/send-message.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberName, messageType, message }) }),
   testSend: (memberId: number, messageType: string) => fetch(`${API_BASE_URL}/api/test-send.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberId, messageType }) }),
   getScheduledMessages: (filter: 'all' | 'pending' | 'sent' = 'all') => fetch(`${API_BASE_URL}/api/scheduled-messages.php?filter=${filter}`),
+  getUpcomingCronEvents: () => fetch(`${API_BASE_URL}/api/upcoming-cron-events.php`),
   addScheduledMessage: (message: string, scheduledAt: string) => fetch(`${API_BASE_URL}/api/scheduled-messages.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, scheduledAt }) }),
   updateScheduledMessage: (id: number, message: string, scheduledAt: string) => fetch(`${API_BASE_URL}/api/scheduled-messages.php`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, message, scheduledAt }) }),
   deleteScheduledMessage: (id: number) => fetch(`${API_BASE_URL}/api/scheduled-messages.php`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),

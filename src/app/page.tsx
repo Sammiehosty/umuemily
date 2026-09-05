@@ -5,6 +5,7 @@ import { api, getApiBaseUrl } from "@/lib/api";
 type Member = { id: number; name: string; birthMonth: number; birthDay: number };
 type LogEntry = { id: number; memberName: string; messageType: string; message: string; status: string; response?: string | null; sentAt: string };
 type ScheduledMessage = { id: number; message: string; scheduledAt: string; status: string; sentAt?: string | null };
+type UpcomingCronEvent = { title: string; scheduledAt: string };
 type ContributionRecord = { memberId: number; memberName: string; yearMonth: string; week1: number; week2: number; week3: number; week4: number; week5: number; memberTotal?: number };
 type DashboardData = { upcomingBirthdays: Array<{ id: number; name: string; birthMonth: number; birthDay: number; daysUntil: number }>; upcomingScheduled: ScheduledMessage[]; recentLogs: LogEntry[]; stats: { totalMembers: number; totalMessagesSent: number; pendingScheduled: number; upcomingBirthdays: number }; waClient: { configured: boolean; groupId: string; groupName: string; instanceId: string }; serverTime: string; timezone: string };
 type Settings = Record<string, string>;
@@ -98,7 +99,7 @@ function LoginPage({ onLogin }: { onLogin: (role: Role) => void }) {
 function Dashboard({ onLogout, role }: { onLogout: () => void; role: Role }) {
   const [tab, setTab] = useState<string>("dashboard");
   const [members, setMembers] = useState<Member[]>([]); const [logs, setLogs] = useState<LogEntry[]>([]); const [settings, setSettings] = useState<Settings>({});
-  const [dash, setDash] = useState<DashboardData|null>(null); const [sched, setSched] = useState<ScheduledMessage[]>([]); const [finance, setFinance] = useState<FinanceData|null>(null);
+  const [dash, setDash] = useState<DashboardData|null>(null); const [sched, setSched] = useState<ScheduledMessage[]>([]); const [cronEvents, setCronEvents] = useState<UpcomingCronEvent[]>([]); const [finance, setFinance] = useState<FinanceData|null>(null);
   const [loading, setLoading] = useState(true); const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const isAdmin = role === 'admin';
 
@@ -124,6 +125,7 @@ function Dashboard({ onLogout, role }: { onLogout: () => void; role: Role }) {
       readApi(api.getDashboard(),'Dashboard'),
       readApi(api.getScheduledMessages('all'),'Scheduled messages'),
       readApi(api.getFinance(),'Finance'),
+      readApi(api.getUpcomingCronEvents(),'Upcoming cron events'),
     ]);
     const errors: string[] = [];
     const take = <T,>(index: number): T|undefined => {
@@ -138,13 +140,14 @@ function Dashboard({ onLogout, role }: { onLogout: () => void; role: Role }) {
     const dashData=take<unknown>(3); if(dashData&&typeof dashData==='object'&&'stats' in dashData) setDash(dashData as DashboardData); else if(dashData!==undefined) errors.push('Dashboard: unexpected response');
     const schedData=take<unknown>(4); if(Array.isArray(schedData)) setSched(schedData as ScheduledMessage[]); else if(schedData!==undefined) errors.push('Scheduled messages: unexpected response');
     const financeData=take<unknown>(5); if(financeData&&typeof financeData==='object'&&'weeklyTotal' in financeData&&Array.isArray((financeData as FinanceData).memberTotals)) setFinance(financeData as FinanceData); else if(financeData!==undefined) errors.push('Finance: unexpected response');
+    const cronData=take<unknown>(6); if(Array.isArray(cronData)) setCronEvents(cronData as UpcomingCronEvent[]); else if(cronData!==undefined) errors.push('Upcoming cron events: unexpected response');
 
     setLoadErrors(errors); setLoading(false);
   };
 
   const refreshLogs=async()=>{try{const d=await readApi(api.getLogs(),'Logs');if(Array.isArray(d))setLogs(d as LogEntry[]);}catch(e){setLoadErrors([e instanceof Error?e.message:'Logs failed']);}};
   const refreshSettings=async()=>{try{const d=await readApi(api.getSettings(),'Settings');if(d&&typeof d==='object'&&!Array.isArray(d))setSettings(d as Settings);}catch(e){setLoadErrors([e instanceof Error?e.message:'Settings failed']);}};
-  const refreshScheduled=async()=>{try{const d=await readApi(api.getScheduledMessages('all'),'Scheduled messages');if(Array.isArray(d))setSched(d as ScheduledMessage[]);}catch(e){setLoadErrors([e instanceof Error?e.message:'Scheduled messages failed']);}};
+  const refreshScheduled=async()=>{try{const [messagesData,cronData]=await Promise.all([readApi(api.getScheduledMessages('all'),'Scheduled messages'),readApi(api.getUpcomingCronEvents(),'Upcoming cron events')]);if(Array.isArray(messagesData))setSched(messagesData as ScheduledMessage[]);if(Array.isArray(cronData))setCronEvents(cronData as UpcomingCronEvent[]);}catch(e){setLoadErrors([e instanceof Error?e.message:'Scheduler refresh failed']);}};
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -173,7 +176,7 @@ function Dashboard({ onLogout, role }: { onLogout: () => void; role: Role }) {
         {tab==="members"&&<MembersTab members={members} finance={finance} onRefresh={fetchAll} isAdmin={isAdmin}/>}
         {tab==="contributions"&&<ContributionsTab/>}
         {tab==="bdayContrib"&&<BdayContribTab members={members} onRefresh={fetchAll}/>}
-        {tab==="scheduler"&&<SchedulerTab messages={sched} onRefresh={refreshScheduled} isAdmin={isAdmin}/>}
+        {tab==="scheduler"&&<SchedulerTab messages={sched} cronEvents={cronEvents} onRefresh={refreshScheduled} isAdmin={isAdmin}/>} 
         {tab==="send"&&<SendTab members={members} settings={settings} onRefresh={refreshLogs} isAdmin={isAdmin}/>}
         {tab==="settings"&&<SettingsTab settings={settings} onRefresh={refreshSettings} isAdmin={isAdmin}/>}
         {tab==="logs"&&<LogsTab logs={logs} onRefresh={refreshLogs}/>}
@@ -755,7 +758,7 @@ function BdayContribTab({ members, onRefresh }: { members: Member[]; onRefresh: 
 }
 
 // ==================== SCHEDULER TAB ====================
-function SchedulerTab({ messages, onRefresh, isAdmin }: { messages: ScheduledMessage[]; onRefresh: () => void; isAdmin: boolean }) {
+function SchedulerTab({ messages, cronEvents, onRefresh, isAdmin }: { messages: ScheduledMessage[]; cronEvents: UpcomingCronEvent[]; onRefresh: () => void; isAdmin: boolean }) {
   const [show, setShow] = useState(false); const [eId, setEId] = useState<number|null>(null); const [msg, setMsg] = useState(""); const [sDate, setSDate] = useState(""); const [sTime, setSTime] = useState("08:00");
   const [filter, setFilter] = useState<'pending'|'sent'|'all'>('pending'); const [sub, setSub] = useState(false);
   const reset=()=>{setMsg("");setSDate("");setSTime("08:00");setEId(null);setShow(false);};
@@ -766,6 +769,7 @@ function SchedulerTab({ messages, onRefresh, isAdmin }: { messages: ScheduledMes
       <div className="flex items-center justify-between flex-wrap gap-2"><h2 className="text-xl font-bold text-gray-800">📅 Message Scheduler</h2>{isAdmin&&<button onClick={()=>{reset();setShow(!show);}} className="bg-accent hover:bg-accent-dark text-white px-4 py-2 rounded-lg text-sm font-medium">{show?"Cancel":"+ Schedule"}</button>}</div>
       {!isAdmin&&<div className="bg-yellow-50 rounded-xl p-3 text-sm text-yellow-700">🔒 Read-only access. Contact main admin to schedule messages.</div>}
       <div className="grid grid-cols-2 gap-4"><div className="bg-blue-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-blue-600">{messages.filter(m=>m.status==='pending').length}</div><div className="text-sm text-blue-600">Pending</div></div><div className="bg-green-50 rounded-xl p-4 text-center"><div className="text-2xl font-bold text-green-600">{messages.filter(m=>m.status==='sent').length}</div><div className="text-sm text-green-600">Sent</div></div></div>
+      <div className="bg-white rounded-xl p-3 shadow-sm"><h3 className="text-xs font-semibold text-gray-600 mb-2">Upcoming Cron Events</h3>{cronEvents.length===0?<p className="text-[11px] text-gray-400">No upcoming automatic events.</p>:<div className="divide-y divide-gray-100">{cronEvents.map((event,index)=><div key={`${event.scheduledAt}-${event.title}-${index}`} className="flex items-center justify-between gap-3 py-1.5"><span className="text-xs text-gray-700 truncate">{event.title}</span><span className="text-[11px] text-gray-400 whitespace-nowrap">{fmtDT(event.scheduledAt)}</span></div>)}</div>}</div>
       {isAdmin&&show&&<form onSubmit={submit} className="bg-white rounded-xl p-4 shadow-sm space-y-4"><textarea value={msg} onChange={e=>setMsg(e.target.value)} rows={4} className="w-full px-3 py-2 border rounded-lg" placeholder="Message..." required /><div className="grid grid-cols-2 gap-4"><input type="date" value={sDate} onChange={e=>setSDate(e.target.value)} min={lagosToday()} className="w-full px-3 py-2 border rounded-lg" required /><input type="time" value={sTime} onChange={e=>setSTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required /></div><p className="text-xs text-gray-500">🕐 Date and time are in West Africa Time (WAT).</p><button type="submit" disabled={sub} className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 rounded-lg disabled:opacity-50">{sub?"Saving...":eId?"Update":"Schedule"}</button></form>}
       <div className="flex gap-2">{(['pending','sent','all'] as const).map(f=><button key={f} onClick={()=>setFilter(f)} className={`px-4 py-2 rounded-lg text-sm font-medium ${filter===f?'bg-primary text-white':'bg-white text-gray-600 hover:bg-gray-100'}`}>{f[0].toUpperCase()+f.slice(1)}</button>)}<button onClick={onRefresh} className="ml-auto bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm">🔄</button></div>
       {filtered.length===0?<div className="bg-white rounded-xl p-8 text-center shadow-sm"><p className="text-gray-500">No messages</p></div>:

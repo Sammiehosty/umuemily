@@ -1,8 +1,17 @@
 const API_BASE_URL = 'https://emily.sammiehosty.com';
 
+const nativeFetch = globalThis.fetch.bind(globalThis);
+const fetch: typeof globalThis.fetch = (input, init = {}) => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  const headers = new Headers(init.headers);
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  return nativeFetch(input, { ...init, headers });
+};
+
 export const api = {
   dbStatus: () => fetch(`${API_BASE_URL}/api/db-status.php`),
   auth: (password: string) => fetch(`${API_BASE_URL}/api/auth.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) }),
+  validateSession: () => fetch(`${API_BASE_URL}/api/auth.php`),
   getDashboard: () => fetch(`${API_BASE_URL}/api/dashboard.php`),
   getWaStatus: () => fetch(`${API_BASE_URL}/api/wa-status.php`),
   getMembers: () => fetch(`${API_BASE_URL}/api/members.php`),
@@ -18,12 +27,14 @@ export const api = {
   addScheduledMessage: (message: string, scheduledAt: string) => fetch(`${API_BASE_URL}/api/scheduled-messages.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, scheduledAt }) }),
   updateScheduledMessage: (id: number, message: string, scheduledAt: string) => fetch(`${API_BASE_URL}/api/scheduled-messages.php`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, message, scheduledAt }) }),
   deleteScheduledMessage: (id: number) => fetch(`${API_BASE_URL}/api/scheduled-messages.php`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
-  getContributions: (month: string) => fetch(`${API_BASE_URL}/api/contributions.php?month=${month}`),
+  getContributions: (month: string) => fetch(`${API_BASE_URL}/api/contributions.php?public=1&month=${month}`),
+  getPublicContributions: (month: string) => fetch(`${API_BASE_URL}/api/contributions.php?public=1&month=${month}`),
   updateContributions: (yearMonth: string, updates: Array<{ memberId: number; week1: boolean; week2: boolean; week3: boolean; week4: boolean; week5: boolean }>) => fetch(`${API_BASE_URL}/api/contributions.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ yearMonth, updates }) }),
   sendContributionReport: (yearMonth: string) => fetch(`${API_BASE_URL}/api/send-contribution-report.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ yearMonth }) }),
   // Birthday contributions
   getBirthdayContributions: (year: number) => fetch(`${API_BASE_URL}/api/birthday-contributions.php?year=${year}`),
-  getBirthdayContributionDetail: (birthdayMemberId: number, year: number) => fetch(`${API_BASE_URL}/api/birthday-contributions.php?birthdayMemberId=${birthdayMemberId}&year=${year}`),
+  getBirthdayContributionDetail: (birthdayMemberId: number, year: number) => fetch(`${API_BASE_URL}/api/birthday-contributions.php?public=1&birthdayMemberId=${birthdayMemberId}&year=${year}`),
+  getPublicBirthdayContributionDetail: (birthdayMemberId: number, year: number) => fetch(`${API_BASE_URL}/api/birthday-contributions.php?public=1&birthdayMemberId=${birthdayMemberId}&year=${year}`),
   updateBirthdayContributions: (birthdayMemberId: number, year: number, updates: Array<{ memberId: number; paid: boolean; amount: number }>) => fetch(`${API_BASE_URL}/api/birthday-contributions.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update', birthdayMemberId, year, updates }) }),
   birthdayPayout: (birthdayMemberId: number, year: number) => fetch(`${API_BASE_URL}/api/birthday-contributions.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'payout', birthdayMemberId, year }) }),
   // Finance

@@ -884,7 +884,7 @@ function LogsTab({ logs, onRefresh }: { logs: LogEntry[]; onRefresh: () => void 
 // ==================== MAIN APP ====================
 export default function Home() {
   const [loggedIn, setLoggedIn] = useState(false); const [checking, setChecking] = useState(true); const [role, setRole] = useState<Role>('admin');
-  useEffect(()=>{const t=localStorage.getItem("auth_token"); const r=localStorage.getItem("auth_role"); if(t){setLoggedIn(true);setRole((r as Role)||'admin');}setChecking(false);},[]);
+  useEffect(()=>{(async()=>{const t=localStorage.getItem("auth_token");if(t){try{const response=await api.validateSession();const data=await response.json();if(response.ok&&data.success){setLoggedIn(true);setRole((data.role as Role)||'admin');localStorage.setItem("auth_role",data.role||'admin');}else{localStorage.removeItem("auth_token");localStorage.removeItem("auth_role");}}catch{/* Keep the user logged out when the session cannot be verified. */}}setChecking(false);})();},[]);
   if(checking) return <div className="min-h-screen flex items-center justify-center"><div className="text-4xl animate-bounce">🎂</div></div>;
   if(!loggedIn) return <LoginPage onLogin={(r)=>{setLoggedIn(true);setRole(r);}}/>;
   return <Dashboard role={role} onLogout={()=>{localStorage.removeItem("auth_token");localStorage.removeItem("auth_role");setLoggedIn(false);}}/>;

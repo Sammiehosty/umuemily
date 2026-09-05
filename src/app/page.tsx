@@ -838,8 +838,8 @@ function SettingsTab({ settings, onRefresh, isAdmin }: { settings: Settings; onR
       <div className="bg-white rounded-xl p-4 shadow-sm space-y-3"><h3 className="font-semibold text-gray-700">Cron Job</h3>
         <input type="text" value={cs} onChange={e=>setCs(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Cron Secret" />
         <div className="bg-gray-50 p-3 rounded-lg text-xs font-mono break-all border">{cronUrl}</div>
-        <label className="flex items-center justify-between gap-4 border rounded-lg p-3 cursor-pointer"><div><p className="text-sm font-semibold text-gray-700">Automatic Debtors Report</p><p className="text-xs text-gray-500">Send to the WhatsApp group every Saturday at 2:00 PM WAT.</p></div><input type="checkbox" checked={autoDebtorsReport} onChange={e=>setAutoDebtorsReport(e.target.checked)} className="w-5 h-5" /></label>
-        <p className="text-xs text-orange-600">Your hosting cron job must call this URL regularly, including shortly after 2:00 PM on Saturdays.</p>
+        <label className="flex items-center justify-between gap-4 border rounded-lg p-3 cursor-pointer"><div><p className="text-sm font-semibold text-gray-700">Automatic Debtors Report</p><p className="text-xs text-gray-500">Send to the WhatsApp group every Saturday at 7:00 AM WAT.</p></div><input type="checkbox" checked={autoDebtorsReport} onChange={e=>setAutoDebtorsReport(e.target.checked)} className="w-5 h-5" /></label>
+        <p className="text-xs text-orange-600">Your hosting cron job must call this URL regularly, including shortly after 7:00 AM.</p>
       </div>
       <div className="bg-white rounded-xl p-4 shadow-sm space-y-3"><h3 className="font-semibold text-gray-700">🏦 Account Details</h3><p className="text-xs text-gray-500">Included in WhatsApp notifications</p>
         <textarea value={ad} onChange={e=>setAd(e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder={"Bank: Access Bank\nAccount Name: Umu Emily\nAccount Number: 1234567890"} />

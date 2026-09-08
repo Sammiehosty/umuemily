@@ -372,7 +372,7 @@ function MembersTab({ members, finance, onRefresh, isAdmin }: { members: Member[
       )}
       {finance&&finance.memberTotals&&finance.memberTotals.length>0&&(()=>{
         const debtors=finance.memberTotals.filter(x=>x.totalDebt>0).length;
-        const overallTotal=finance.weeklyTotal+finance.totalBirthdayContributed+finance.totalSupport+finance.totalLateFeesPaid;
+        const overallTotal=finance.balance+finance.totalBirthdayContributed;
         return(
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="bg-white rounded-xl p-3 shadow-sm text-center"><div className="text-lg font-bold text-green-600">₦{finance.weeklyTotal.toLocaleString()}</div><div className="text-xs text-gray-500">Total Weekly Dues</div></div>

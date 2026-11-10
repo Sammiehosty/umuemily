@@ -43,6 +43,7 @@ export const api = {
   sendCredit: (memberName: string, amount: number, description: string) => fetch(`${API_BASE_URL}/api/finance.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'credit', memberName, amount, description }) }),
   addBankCharge: (amount: number, description: string) => fetch(`${API_BASE_URL}/api/finance.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'bank_charge', amount, description }) }),
   payLateFees: (memberId: number, feeIds: number[]) => fetch(`${API_BASE_URL}/api/finance.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'pay_late_fees', memberId, feeIds }) }),
+  memberFinancialReport: (memberId: number, years: number[], action: 'preview'|'send' = 'preview') => fetch(`${API_BASE_URL}/api/member-financial-report.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberId, years, action }) }),
   sendDebtorsReport: () => fetch(`${API_BASE_URL}/api/send-debtors-report.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
   previewDebtorsReport: () => fetch(`${API_BASE_URL}/api/send-debtors-report.php`),
   getPublicMemberReport: (id: number) => fetch(`${API_BASE_URL}/api/public-member-report.php?id=${id}`),
